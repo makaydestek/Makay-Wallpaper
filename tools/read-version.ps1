@@ -23,5 +23,5 @@ $min = [int]$parts[1]
 $pat = [int]$parts[2]
 $code = $maj * 1000000 + $min * 1000 + $pat
 
-# Output'u console'a yaz (batch için önemli)
-Write-Output "$content $code"
+# Output'u pipe ile batch'e yaz
+Write-Output "$Version|$code"

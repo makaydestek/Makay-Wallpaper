@@ -26,5 +26,5 @@ $newMaj = $oldMaj
 $newMin = $oldMin
 $NewVersion = "$newMaj.$newMin.$newPat"
 
-# Output'u console'a yaz (batch için önemli)
-Write-Output "$oldMaj.$oldMin.$oldPat $newMaj.$newMin.$newPat"
+# Output'u pipe ile batch'e yaz
+Write-Output "$OldVersion|$NewVersion"
