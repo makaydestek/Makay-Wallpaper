@@ -129,9 +129,11 @@ echo [2/6] Surum artiriliyor (VERSION.txt)...
 REM ============================================================
 set "OLD_VERSION="
 set "VERSION="
-for /f "usebackq tokens=1,2 delims=|" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%BUMP_PS1%"`) do (
+for /f "usebackq tokens=1 delims=|" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%BUMP_PS1%"`) do (
     set "OLD_VERSION=%%A"
-    set "VERSION=%%B"
+)
+for /f "usebackq tokens=2 delims=|" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%BUMP_PS1%"`) do (
+    set "VERSION=%%A"
 )
 if not defined VERSION (
     echo [HATA] Surum artirilamadi.
@@ -139,6 +141,9 @@ if not defined VERSION (
 )
 echo  Onceki : !OLD_VERSION!
 echo  Yeni   : !VERSION!
+
+:: VERSION.txt'ye yeni surumu yaz
+echo %VERSION% > VERSION.txt
 
 REM Surum dosyasini dogrula (tek kaynak)
 set "CHECK_VER="
