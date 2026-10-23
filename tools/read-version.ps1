@@ -1,4 +1,7 @@
-param([ref]$Version, [ref]$Code)
+param(
+    [string]$Version,
+    [string]$Code
+)
 
 # VERSION.txt içeriğini oku
 $content = Get-Content -Path "VERSION.txt" -Raw
@@ -12,7 +15,7 @@ if ($parts.Count -ne 3) {
 }
 
 # Version bilgisini çıkar
-$Version.Value = $content
+$Version = $content
 
 # versionCode hesapla: major * 1_000_000 + minor * 1_000 + patch
 $maj = [int]$parts[0]
@@ -20,6 +23,5 @@ $min = [int]$parts[1]
 $pat = [int]$parts[2]
 $code = $maj * 1000000 + $min * 1000 + $pat
 
-$Code.Value = $code
-
+# Output'u console'a yaz (batch için önemli)
 Write-Output "$content $code"

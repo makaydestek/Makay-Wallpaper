@@ -1,4 +1,7 @@
-param([ref]$OldVersion, [ref]$NewVersion)
+param(
+    [string]$OldVersion,
+    [string]$NewVersion
+)
 
 # VERSION.txt içeriğini oku
 $content = Get-Content -Path "VERSION.txt" -Raw
@@ -15,12 +18,13 @@ if ($parts.Count -ne 3) {
 $oldMaj = $parts[0].Trim()
 $oldMin = $parts[1].Trim()
 $oldPat = $parts[2].Trim()
-$OldVersion.Value = "$oldMaj.$oldMin.$oldPat"
+$OldVersion = "$oldMaj.$oldMin.$oldPat"
 
 # Minor version artır (patch + 1)
 $newPat = [int]$oldPat + 1
 $newMaj = $oldMaj
 $newMin = $oldMin
-$NewVersion.Value = "$newMaj.$newMin.$newPat"
+$NewVersion = "$newMaj.$newMin.$newPat"
 
+# Output'u console'a yaz (batch için önemli)
 Write-Output "$oldMaj.$oldMin.$oldPat $newMaj.$newMin.$newPat"
