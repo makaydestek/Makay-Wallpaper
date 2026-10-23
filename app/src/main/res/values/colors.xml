@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#6200EE</color>
+    <color name="colorPrimaryDark">#3700B3</color>
+    <color name="colorOnPrimary">#FFFFFF</color>
+    <color name="colorBackground">#FAFAFA</color>
+    <color name="colorSurface">#FFFFFF</color>
+    <color name="onBackground">#212121</color>
+    <color name="colorSecondary">#0081FF</color>
+    <color name="colorError">#CF6679</color>
+    <color name="colorWarning">#FDDI2C</color>
+</resources>
