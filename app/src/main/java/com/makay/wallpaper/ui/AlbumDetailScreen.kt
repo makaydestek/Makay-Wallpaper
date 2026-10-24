@@ -85,11 +85,21 @@ fun AlbumDetailScreen(
                 .padding(horizontal = 16.dp)
         ) {
             TvActionButton(
-                onClick = { WallpaperController.setAlbum(context, album.id) },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
+                onClick = {
+                    if (album.images.isEmpty()) return@TvActionButton
+                    WallpaperController.setAlbum(context, album.id)
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 idle = MaterialTheme.colorScheme.primary
             ) {
-                Text(LanguageManager.t("Aktif albüm yap", "Set as active", context))
+                Text(
+                    LanguageManager.t(
+                        "Şimdi duvar kağıdı yap",
+                        "Set as wallpaper now",
+                        context
+                    ),
+                    fontWeight = FontWeight.Bold
+                )
             }
 
             TvFocusRow(

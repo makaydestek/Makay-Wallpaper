@@ -1,5 +1,6 @@
 package com.makay.wallpaper.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -27,7 +28,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.makay.wallpaper.core.WallpaperController
 import com.makay.wallpaper.core.WallpaperScheduler
+import com.makay.wallpaper.data.AlbumRepository
 import com.makay.wallpaper.data.WallpaperSettingsRepository
 import com.makay.wallpaper.domain.model.IntervalUnit
 import com.makay.wallpaper.domain.model.TimerSettings
@@ -38,14 +41,57 @@ import com.makay.wallpaper.util.LanguageManager
 fun TimerScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     val repo = remember { WallpaperSettingsRepository.getInstance(context) }
+    val albums = remember { AlbumRepository.getInstance(context) }
     val timer by repo.timer.collectAsState()
+    val activeAlbumId by repo.activeAlbumId.collectAsState()
     var valueText by remember(timer.intervalValue) {
         mutableStateOf(timer.intervalValue.toString())
     }
 
-    fun apply(updated: TimerSettings) {
+    fun save(updated: TimerSettings) {
         repo.setTimer(updated)
         WallpaperScheduler.scheduleTimer(context)
+    }
+
+    fun applyNow() {
+        val v = valueText.toIntOrNull()?.coerceAtLeast(1) ?: timer.intervalValue
+        val updated = timer.copy(intervalValue = v, enabled = true)
+        save(updated)
+
+        val albumId = activeAlbumId
+        val album = albumId?.let { albums.getById(it) }
+        if (albumId == null || album == null || album.images.isEmpty()) {
+            Toast.makeText(
+                context,
+                LanguageManager.t(
+                    "Önce bir albüme görsel ekleyin ve aktif yapın",
+                    "Add images to an album and activate it first",
+                    context
+                ),
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        val ok = WallpaperController.applyCurrent(context) ||
+            WallpaperController.next(context)
+        Toast.makeText(
+            context,
+            if (ok) {
+                LanguageManager.t(
+                    "Zamanlayıcı uygulandı — duvar kağıdı güncellendi",
+                    "Timer applied — wallpaper updated",
+                    context
+                )
+            } else {
+                LanguageManager.t(
+                    "Zamanlayıcı kaydedildi; duvar kağıdı uygulanamadı",
+                    "Timer saved; wallpaper could not be applied",
+                    context
+                )
+            },
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     Scaffold(
@@ -73,14 +119,14 @@ fun TimerScreen(onNavigateBack: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            TvFocusRow(onClick = { apply(timer.copy(enabled = !timer.enabled)) }) {
+            TvFocusRow(onClick = { save(timer.copy(enabled = !timer.enabled)) }) {
                 Text(
                     LanguageManager.t("Etkin", "Enabled", context),
                     modifier = Modifier.weight(1f)
                 )
                 Switch(
                     checked = timer.enabled,
-                    onCheckedChange = { apply(timer.copy(enabled = it)) },
+                    onCheckedChange = { save(timer.copy(enabled = it)) },
                     modifier = Modifier.tvSkipChildFocus()
                 )
             }
@@ -90,9 +136,9 @@ fun TimerScreen(onNavigateBack: () -> Unit) {
                 onValueChange = {
                     valueText = it.filter { c -> c.isDigit() }.take(5)
                     val v = valueText.toIntOrNull()?.coerceAtLeast(1) ?: return@OutlinedTextField
-                    apply(timer.copy(intervalValue = v))
+                    save(timer.copy(intervalValue = v))
                 },
-                label = { Text(LanguageManager.t("Aralık değeri", "Interval value", context) ) },
+                label = { Text(LanguageManager.t("Aralık değeri", "Interval value", context)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -102,7 +148,7 @@ fun TimerScreen(onNavigateBack: () -> Unit) {
                 IntervalUnit.entries.forEach { unit ->
                     FilterChip(
                         selected = timer.unit == unit,
-                        onClick = { apply(timer.copy(unit = unit)) },
+                        onClick = { save(timer.copy(unit = unit)) },
                         label = {
                             Text(
                                 when (unit) {
@@ -117,20 +163,20 @@ fun TimerScreen(onNavigateBack: () -> Unit) {
                 }
             }
 
-            TvFocusRow(onClick = { apply(timer.copy(random = !timer.random)) }) {
+            TvFocusRow(onClick = { save(timer.copy(random = !timer.random)) }) {
                 Text(
                     LanguageManager.t("Rastgele sırada", "Random order", context),
                     modifier = Modifier.weight(1f)
                 )
                 Switch(
                     checked = timer.random,
-                    onCheckedChange = { apply(timer.copy(random = it)) },
+                    onCheckedChange = { save(timer.copy(random = it)) },
                     modifier = Modifier.tvSkipChildFocus()
                 )
             }
 
             TvActionButton(
-                onClick = { WallpaperScheduler.scheduleTimer(context) },
+                onClick = { applyNow() },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 idle = MaterialTheme.colorScheme.primary
             ) {

@@ -7,6 +7,7 @@ import com.makay.wallpaper.domain.model.BehaviorSettings
 import com.makay.wallpaper.domain.model.ChangeTriggers
 import com.makay.wallpaper.domain.model.DayPartAlbums
 import com.makay.wallpaper.domain.model.DisplayFitSettings
+import com.makay.wallpaper.domain.model.FitMode
 import com.makay.wallpaper.domain.model.GestureSettings
 import com.makay.wallpaper.domain.model.ImageEffects
 import com.makay.wallpaper.domain.model.TimerSettings
@@ -219,6 +220,18 @@ class WallpaperSettingsRepository private constructor(context: Context) {
     }
 
     private fun loadDisplayFit(): DisplayFitSettings {
+        // Tek seferlik: eski FILL + landscape swap yan kırpmaya yol açıyordu
+        if (!prefs.getBoolean(KEY_FIT_MIGRATED_V2, false)) {
+            val migrated = DisplayFitSettings(
+                fitMode = FitMode.FIT,
+                autoRotateDimsForLandscape = false
+            )
+            prefs.edit()
+                .putBoolean(KEY_FIT_MIGRATED_V2, true)
+                .putString(KEY_DISPLAY_FIT, gson.toJson(migrated))
+                .apply()
+            return migrated
+        }
         val json = prefs.getString(KEY_DISPLAY_FIT, null) ?: return DisplayFitSettings()
         return runCatching { gson.fromJson(json, DisplayFitSettings::class.java) }
             .getOrDefault(DisplayFitSettings())
@@ -254,6 +267,7 @@ class WallpaperSettingsRepository private constructor(context: Context) {
         private const val KEY_RANDOM = "random"
         private const val KEY_TARGET = "target"
         private const val KEY_DISPLAY_FIT = "display_fit"
+        private const val KEY_FIT_MIGRATED_V2 = "fit_migrated_v2"
         private const val KEY_EFFECTS = "effects"
         private const val KEY_BEHAVIOR = "behavior"
         private const val KEY_DAY_PART = "day_part"

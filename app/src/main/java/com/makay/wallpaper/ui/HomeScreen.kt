@@ -113,6 +113,12 @@ fun HomeScreen(
                 }
             }
 
+            // Wallpaper Changer Pro tarzı: tek adımda seç + uygula
+            QuickWallpaperSourceButtons(
+                onNeedPermission = onNavigatePermissions,
+                prominent = true
+            )
+
             if (landscapePaused) {
                 Text(
                     LanguageManager.t(
@@ -156,8 +162,8 @@ fun HomeScreen(
                     } else {
                         Text(
                             LanguageManager.t(
-                                "Önizleme yok — albüm ekleyip aktifleştirin",
-                                "No preview — add and activate an album",
+                                "Önizleme yok — yukarıdan görsel veya klasör seçin",
+                                "No preview — pick images or a folder above",
                                 context
                             ),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -188,12 +194,36 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         TvActionButton(
-                            onClick = { WallpaperController.prev(context) },
+                            onClick = {
+                                if (!WallpaperController.prev(context)) {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        LanguageManager.t(
+                                            "Albüm boş veya aktif albüm yok",
+                                            "Album empty or no active album",
+                                            context
+                                        ),
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
                             modifier = Modifier.weight(1f).height(48.dp),
                             idle = MaterialTheme.colorScheme.secondary
                         ) { Text(LanguageManager.t("Önceki", "Prev", context)) }
                         TvActionButton(
-                            onClick = { WallpaperController.next(context) },
+                            onClick = {
+                                if (!WallpaperController.next(context, sequential = true)) {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        LanguageManager.t(
+                                            "Albüm boş veya aktif albüm yok",
+                                            "Album empty or no active album",
+                                            context
+                                        ),
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            },
                             modifier = Modifier.weight(1f).height(48.dp),
                             idle = MaterialTheme.colorScheme.primary
                         ) { Text(LanguageManager.t("Sonraki", "Next", context)) }

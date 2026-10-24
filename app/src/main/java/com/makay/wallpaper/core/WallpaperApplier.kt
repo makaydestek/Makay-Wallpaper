@@ -261,8 +261,19 @@ object WallpaperApplier {
         }
     }
 
-    private fun openStream(context: Context, uri: Uri): InputStream? =
-        runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()
+    private fun openStream(context: Context, uri: Uri): InputStream? {
+        runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()?.let { return it }
+        // file:// veya düz dosya yolu (uygulama içi kopyalar)
+        val path = when {
+            uri.scheme.equals("file", ignoreCase = true) -> uri.path
+            uri.scheme.isNullOrBlank() -> uri.toString()
+            else -> null
+        }
+        if (!path.isNullOrBlank()) {
+            return runCatching { java.io.FileInputStream(java.io.File(path)) }.getOrNull()
+        }
+        return null
+    }
 
     private fun calculateInSampleSize(width: Int, height: Int, reqW: Int, reqH: Int): Int {
         var inSampleSize = 1

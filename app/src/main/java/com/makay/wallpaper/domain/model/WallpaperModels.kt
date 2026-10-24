@@ -108,14 +108,15 @@ enum class ResolutionSource {
 }
 
 data class DisplayFitSettings(
-    val fitMode: FitMode = FitMode.FILL,
+    /** FIT: tamamı görünsün (kenar şerit). FILL: ekranı doldur (kenarlar kesilebilir). */
+    val fitMode: FitMode = FitMode.FIT,
     val resolutionSource: ResolutionSource = ResolutionSource.DEVICE,
     /** Örn. 1220 — dikey genişlik */
     val customWidth: Int = 1220,
     /** Örn. 2712 — dikey yükseklik */
     val customHeight: Int = 2712,
-    /** Yatay görsellerde W↔H değiştir */
-    val autoRotateDimsForLandscape: Boolean = true,
+    /** Yatay görsellerde W↔H değiştir (telefon duvar kağıdında genelde kapalı tutulmalı) */
+    val autoRotateDimsForLandscape: Boolean = false,
     /** FIT modunda boşluk rengi (ARGB) */
     val letterboxColor: Int = 0xFF000000.toInt()
 ) {

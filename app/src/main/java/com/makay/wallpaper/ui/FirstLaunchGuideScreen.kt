@@ -34,9 +34,9 @@ fun FirstLaunchGuideScreen(
 ) {
     var step by remember { mutableIntStateOf(0) }
     val coreSteps = listOf(
-        LanguageManager.t("Albümler", "Albums", context) to LanguageManager.t(
-            "Galeriden veya klasörden görseller ekleyerek albümler oluşturun. Aktif albüm duvar kağıdı kaynağıdır.",
-            "Create albums from gallery or folders. The active album is your wallpaper source.",
+        LanguageManager.t("Hızlı başlat", "Quick start", context) to LanguageManager.t(
+            "Ana ekranda «Görsel seç» veya «Klasör seç»e dokunun. Albüm otomatik oluşur ve hemen uygulanır — ekstra adım yok.",
+            "On Home tap Pick images or Pick folder. An album is created and applied instantly — no extra steps.",
             context
         ),
         LanguageManager.t("Zamanlayıcı", "Timer", context) to LanguageManager.t(

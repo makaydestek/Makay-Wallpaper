@@ -63,11 +63,15 @@ object WallpaperController {
         return ok
     }
 
-    fun next(context: Context): Boolean {
+    /**
+     * @param sequential true ise (UI Önceki/Sonraki) rastgele ayarı yok sayılır.
+     * Zamanlayıcı/worker rastgele için sequential=false bırakır.
+     */
+    fun next(context: Context, sequential: Boolean = false): Boolean {
         if (isLandscapePaused(context)) return false
         applyDayPartIfNeeded(context)
         val settings = WallpaperSettingsRepository.getInstance(context)
-        if (settings.random.value || settings.timer.value.random) {
+        if (!sequential && (settings.random.value || settings.timer.value.random)) {
             return random(context)
         }
         return advance(context, +1)

@@ -32,7 +32,13 @@ object FolderWatchManager {
 
     private val scanRunnable = Runnable {
         val ctx = appContext ?: return@Runnable
-        runCatching { scanWatchedAlbums(ctx) }
+        // Ağır tarama asla ana thread'de olmamalı (ANR)
+        val wh = workerHandler
+        if (wh != null) {
+            wh.post { runCatching { scanWatchedAlbums(ctx) } }
+        } else {
+            Thread({ runCatching { scanWatchedAlbums(ctx) } }, "FolderScan").start()
+        }
     }
 
     @Synchronized
@@ -46,6 +52,7 @@ object FolderWatchManager {
     @Synchronized
     fun stop() {
         mainHandler.removeCallbacks(scanRunnable)
+        workerHandler?.removeCallbacks(scanRunnable)
         workerHandler?.removeCallbacksAndMessages(null)
         observers.values.forEach { runCatching { it.stopWatching() } }
         observers.clear()
@@ -78,12 +85,17 @@ object FolderWatchManager {
     }
 
     fun requestScanSoon() {
-        mainHandler.removeCallbacks(scanRunnable)
-        mainHandler.postDelayed(scanRunnable, DEBOUNCE_MS)
+        ensureWorker()
+        workerHandler?.removeCallbacks(scanRunnable)
+        workerHandler?.postDelayed(scanRunnable, DEBOUNCE_MS)
+            ?: mainHandler.postDelayed(scanRunnable, DEBOUNCE_MS)
     }
 
     fun scanNow(context: Context) {
-        runCatching { scanWatchedAlbums(context.applicationContext) }
+        ensureWorker()
+        val app = context.applicationContext
+        workerHandler?.post { runCatching { scanWatchedAlbums(app) } }
+            ?: Thread({ runCatching { scanWatchedAlbums(app) } }, "FolderScanNow").start()
     }
 
     private fun ensureWorker() {
