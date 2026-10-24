@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Makay Wallpaper ikon zemini (Cleaner teal #00897B yerine Makay mavi) -->
-    <color name="ic_launcher_background">#1E4D9C</color>
+    <!-- Makay ekosistem teal zemini (Cleaner ile arka plan uyumu) -->
+    <color name="ic_launcher_background">#00897B</color>
 </resources>

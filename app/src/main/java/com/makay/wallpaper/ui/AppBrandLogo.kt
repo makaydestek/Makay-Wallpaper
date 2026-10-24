@@ -13,7 +13,9 @@ import androidx.compose.ui.unit.dp
 import com.makay.wallpaper.R
 
 /**
- * Makay Wallpaper marka logosu (Cleaner ikonundan ayrı; mavi + manzara çerçevesi).
+ * Makay Wallpaper marka logosu.
+ * Buyuk boyut: MAKAY yazili tam ikon (ekosistem).
+ * Kucuk boyut: geometrik M + duvar kagidi rozeti.
  */
 @Composable
 fun AppBrandLogo(
@@ -21,12 +23,17 @@ fun AppBrandLogo(
     size: Dp = 96.dp,
     corner: Dp = 20.dp
 ) {
+    val resId = if (size >= 56.dp) {
+        R.drawable.ic_launcher_fg
+    } else {
+        R.drawable.ic_app_logo
+    }
     Image(
-        painter = painterResource(R.drawable.ic_app_logo),
+        painter = painterResource(resId),
         contentDescription = "Makay Wallpaper",
         modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(corner)),
-        contentScale = ContentScale.Fit
+        contentScale = ContentScale.Crop
     )
 }

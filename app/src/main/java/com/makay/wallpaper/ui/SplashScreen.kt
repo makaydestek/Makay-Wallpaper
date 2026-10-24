@@ -17,13 +17,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.makay.wallpaper.BuildConfig
 import kotlinx.coroutines.delay
 
-private val SplashBlue = Color(0xFF1E4D9C)
+/** Makay ekosistem teal gradient (Cleaner ile arka plan uyumu) */
+private val SplashTealTop = Color(0xFF4ECDC4)
+private val SplashTealBottom = Color(0xFF00897B)
 
 @Composable
 fun SplashScreen(
@@ -42,7 +45,7 @@ fun SplashScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(SplashBlue),
+            .background(Brush.verticalGradient(listOf(SplashTealTop, SplashTealBottom))),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -51,7 +54,7 @@ fun SplashScreen(
                 .scale(scale.value)
                 .alpha(alpha.value)
         ) {
-            AppBrandLogo(size = 112.dp, corner = 24.dp)
+            AppBrandLogo(size = 120.dp, corner = 28.dp)
             Spacer(modifier = Modifier.height(20.dp))
             Text(
                 text = "Makay Wallpaper",
@@ -63,7 +66,7 @@ fun SplashScreen(
             Text(
                 text = "v${BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.75f)
+                color = Color.White.copy(alpha = 0.8f)
             )
         }
     }

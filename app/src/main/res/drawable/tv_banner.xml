@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android TV banner yedegi (320x180). Asil gorsel: drawable-xhdpi/tv_banner.png -->
+<!-- Android TV banner yedegi. Asil gorsel: drawable-xhdpi/tv_banner.png -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#1E4D9C" />
+            <gradient
+                android:angle="270"
+                android:startColor="#4ECDC4"
+                android:endColor="#00897B" />
         </shape>
     </item>
     <item
