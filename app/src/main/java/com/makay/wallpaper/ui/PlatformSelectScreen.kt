@@ -33,6 +33,8 @@ fun PlatformSelectScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            AppBrandLogo(size = 88.dp, corner = 20.dp)
+            Spacer(Modifier.height(20.dp))
             Text(
                 "Makay Wallpaper",
                 color = Color.White,

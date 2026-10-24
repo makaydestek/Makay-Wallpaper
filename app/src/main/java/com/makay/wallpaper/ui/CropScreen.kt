@@ -124,7 +124,7 @@ fun CropScreen(
                         size = Size(size.width, size.height)
                     )
                     drawRect(
-                        color = Color(0xFF4ECDC4),
+                        color = Color(0xFF3F8CFF),
                         topLeft = Offset(l, t),
                         size = Size((r - l).coerceAtLeast(1f), (b - t).coerceAtLeast(1f)),
                         style = Stroke(width = 4.dp.toPx())

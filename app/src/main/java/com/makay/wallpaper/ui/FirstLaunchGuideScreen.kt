@@ -107,7 +107,7 @@ fun FirstLaunchGuideScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                idle = Color(0xFF4ECDC4)
+                idle = Color(0xFF3F8CFF)
             ) {
                 Text(
                     if (step < steps.lastIndex)

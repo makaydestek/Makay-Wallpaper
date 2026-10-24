@@ -29,7 +29,7 @@ val MakaySurface = Color(0xFFFFFFFF)
 val MakayError = Color(0xFFFF453A)
 val MakayAmoled = Color(0xFF000000)
 val MakayCardDark = Color(0xFF1C1C1E)
-val MakayJunkOrange = Color(0xFFFF6B35)
+val MakayAccentWarm = Color(0xFFFF6B35)
 
 private val LightColorScheme = lightColorScheme(
     primary = MakayPrimary,
