@@ -159,6 +159,8 @@ echo [3/6] Release APK derleniyor + APK\ klasorune yayinlaniyor (v!VERSION!)...
 REM ============================================================
 echo  Bu islem birka dakika surebilir.
 echo.
+REM --no-daemon: build client JVM'de calisir; R8 icin heap zorunlu
+set "GRADLE_OPTS=-Xmx4096m -Xms256m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8"
 call "%GRADLEW%" --stop >nul 2>&1
 call "%GRADLEW%" assembleRelease --no-daemon
 set "ERR=!ERRORLEVEL!"
