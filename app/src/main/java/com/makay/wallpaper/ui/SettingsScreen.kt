@@ -42,6 +42,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.makay.wallpaper.core.WallpaperApplier
+import com.makay.wallpaper.core.WallpaperController
 import com.makay.wallpaper.domain.model.DisplayFitSettings
 import com.makay.wallpaper.domain.model.FitMode
 import com.makay.wallpaper.domain.model.GestureAction
@@ -293,7 +294,14 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     TriggerRow(
                         LanguageManager.t("Gestures açık", "Gestures enabled", context),
                         gestures.enabled
-                    ) { settings.setGestures(gestures.copy(enabled = it)) }
+                    ) { enabled ->
+                        settings.setGestures(gestures.copy(enabled = enabled))
+                        if (enabled &&
+                            !com.makay.wallpaper.util.LiveWallpaperHelper.isOurLiveWallpaperActive(context)
+                        ) {
+                            com.makay.wallpaper.util.LiveWallpaperHelper.openLiveWallpaperSetup(context)
+                        }
+                    }
                     Text(LanguageManager.t("Çift dokunuş", "Double tap", context))
                     GestureChips(gestures.doubleTapAction) {
                         settings.setGestures(gestures.copy(doubleTapAction = it))
@@ -492,9 +500,25 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 fontWeight = FontWeight.Bold
             )
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                Column(Modifier.padding(12.dp)) {
+                Column(
+                    Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        LanguageManager.t(
+                            "Yalnız «Ana ekran» seçiliyse kilit değişmemeli. " +
+                                "Bazı telefonlarda (MIUI) bunun için aşağıdaki kilit albümünü ayrı seçin.",
+                            "With Home only, lock should stay. On some phones (MIUI) also set a separate lock album below.",
+                            context
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     WallpaperTarget.entries.forEach { t ->
-                        TvFocusRow(onClick = { settings.setTarget(t) }) {
+                        TvFocusRow(onClick = {
+                            settings.setTarget(t)
+                            WallpaperController.applyCurrent(context)
+                        }) {
                             RadioButton(
                                 selected = target == t,
                                 onClick = null,
@@ -512,6 +536,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     }
                 }
             }
+
+            HomeLockAlbumSection()
 
             AdvancedFeaturesSection()
 

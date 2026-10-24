@@ -108,8 +108,8 @@ enum class ResolutionSource {
 }
 
 data class DisplayFitSettings(
-    /** FIT: tamamı görünsün (kenar şerit). FILL: ekranı doldur (kenarlar kesilebilir). */
-    val fitMode: FitMode = FitMode.FIT,
+    /** FILL: ekranı doldur (varsayılan). FIT: tamamı görünsün (şerit kalabilir). */
+    val fitMode: FitMode = FitMode.FILL,
     val resolutionSource: ResolutionSource = ResolutionSource.DEVICE,
     /** Örn. 1220 — dikey genişlik */
     val customWidth: Int = 1220,

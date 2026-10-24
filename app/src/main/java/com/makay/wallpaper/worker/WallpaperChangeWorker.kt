@@ -16,10 +16,14 @@ class WallpaperChangeWorker(
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         runCatching {
-            WallpaperController.next(applicationContext)
             val timer = WallpaperSettingsRepository.getInstance(applicationContext).timer.value
+            if (!timer.enabled) {
+                WallpaperScheduler.cancelTimer(applicationContext)
+                return@runCatching
+            }
+            WallpaperController.next(applicationContext)
             val interval = timer.intervalMillis()
-            if (timer.enabled && interval < 15L * 60_000L) {
+            if (interval < 15L * 60_000L) {
                 WallpaperScheduler.rescheduleTimerAfterChange(applicationContext)
             }
         }

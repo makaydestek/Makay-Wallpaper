@@ -112,6 +112,13 @@ class WallpaperSettingsRepository private constructor(context: Context) {
         _target.value = target
     }
 
+    /** OEM (MIUI) ana ekran değişince kilidi de ezerse geri yüklemek için */
+    fun lastLockUri(): String? = prefs.getString(KEY_LAST_LOCK_URI, null)
+
+    fun setLastLockUri(uri: String?) {
+        prefs.edit().putString(KEY_LAST_LOCK_URI, uri).apply()
+    }
+
     fun setDisplayFit(settings: DisplayFitSettings) {
         prefs.edit().putString(KEY_DISPLAY_FIT, gson.toJson(settings)).apply()
         _displayFit.value = settings
@@ -220,13 +227,14 @@ class WallpaperSettingsRepository private constructor(context: Context) {
     }
 
     private fun loadDisplayFit(): DisplayFitSettings {
-        // Tek seferlik: eski FILL + landscape swap yan kırpmaya yol açıyordu
-        if (!prefs.getBoolean(KEY_FIT_MIGRATED_V2, false)) {
+        // v3: ekranı doldur (FILL) — FIT üst/alt siyah şerit bırakıyordu
+        if (!prefs.getBoolean(KEY_FIT_MIGRATED_V3, false)) {
             val migrated = DisplayFitSettings(
-                fitMode = FitMode.FIT,
+                fitMode = FitMode.FILL,
                 autoRotateDimsForLandscape = false
             )
             prefs.edit()
+                .putBoolean(KEY_FIT_MIGRATED_V3, true)
                 .putBoolean(KEY_FIT_MIGRATED_V2, true)
                 .putString(KEY_DISPLAY_FIT, gson.toJson(migrated))
                 .apply()
@@ -268,6 +276,8 @@ class WallpaperSettingsRepository private constructor(context: Context) {
         private const val KEY_TARGET = "target"
         private const val KEY_DISPLAY_FIT = "display_fit"
         private const val KEY_FIT_MIGRATED_V2 = "fit_migrated_v2"
+        private const val KEY_FIT_MIGRATED_V3 = "fit_migrated_v3"
+        private const val KEY_LAST_LOCK_URI = "last_lock_uri"
         private const val KEY_EFFECTS = "effects"
         private const val KEY_BEHAVIOR = "behavior"
         private const val KEY_DAY_PART = "day_part"

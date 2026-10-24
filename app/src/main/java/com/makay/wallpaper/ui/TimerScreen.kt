@@ -50,13 +50,46 @@ fun TimerScreen(onNavigateBack: () -> Unit) {
 
     fun save(updated: TimerSettings) {
         repo.setTimer(updated)
-        WallpaperScheduler.scheduleTimer(context)
+        if (updated.enabled) {
+            WallpaperScheduler.scheduleTimer(context)
+        } else {
+            // Pasife alınca tüm alarm / WorkManager işlerini iptal et
+            WallpaperScheduler.cancelTimer(context)
+        }
+    }
+
+    fun setEnabled(enabled: Boolean) {
+        val v = valueText.toIntOrNull()?.coerceAtLeast(1) ?: timer.intervalValue
+        save(timer.copy(intervalValue = v, enabled = enabled))
+        Toast.makeText(
+            context,
+            if (enabled) {
+                LanguageManager.t("Zamanlayıcı açıldı", "Timer enabled", context)
+            } else {
+                LanguageManager.t("Zamanlayıcı kapatıldı", "Timer disabled", context)
+            },
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     fun applyNow() {
         val v = valueText.toIntOrNull()?.coerceAtLeast(1) ?: timer.intervalValue
-        val updated = timer.copy(intervalValue = v, enabled = true)
+        // Mevcut açık/kapalı durumunu koru — Uygula zorla açmasın
+        val updated = timer.copy(intervalValue = v)
         save(updated)
+
+        if (!updated.enabled) {
+            Toast.makeText(
+                context,
+                LanguageManager.t(
+                    "Ayarlar kaydedildi — zamanlayıcı kapalı",
+                    "Settings saved — timer is off",
+                    context
+                ),
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
 
         val albumId = activeAlbumId
         val album = albumId?.let { albums.getById(it) }
@@ -73,14 +106,13 @@ fun TimerScreen(onNavigateBack: () -> Unit) {
             return
         }
 
-        val ok = WallpaperController.applyCurrent(context) ||
-            WallpaperController.next(context)
+        val ok = WallpaperController.applyCurrent(context)
         Toast.makeText(
             context,
             if (ok) {
                 LanguageManager.t(
-                    "Zamanlayıcı uygulandı — duvar kağıdı güncellendi",
-                    "Timer applied — wallpaper updated",
+                    "Zamanlayıcı çalışıyor — duvar kağıdı güncellendi",
+                    "Timer running — wallpaper updated",
                     context
                 )
             } else {
@@ -119,17 +151,39 @@ fun TimerScreen(onNavigateBack: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            TvFocusRow(onClick = { save(timer.copy(enabled = !timer.enabled)) }) {
+            TvFocusRow(onClick = { setEnabled(!timer.enabled) }) {
                 Text(
                     LanguageManager.t("Etkin", "Enabled", context),
                     modifier = Modifier.weight(1f)
                 )
                 Switch(
                     checked = timer.enabled,
-                    onCheckedChange = { save(timer.copy(enabled = it)) },
+                    onCheckedChange = { setEnabled(it) },
                     modifier = Modifier.tvSkipChildFocus()
                 )
             }
+
+            Text(
+                if (timer.enabled) {
+                    LanguageManager.t(
+                        "Durum: açık — otomatik değişim sürüyor",
+                        "Status: on — auto-change is running",
+                        context
+                    )
+                } else {
+                    LanguageManager.t(
+                        "Durum: kapalı — otomatik değişim yok",
+                        "Status: off — no auto-change",
+                        context
+                    )
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = if (timer.enabled) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
 
             OutlinedTextField(
                 value = valueText,

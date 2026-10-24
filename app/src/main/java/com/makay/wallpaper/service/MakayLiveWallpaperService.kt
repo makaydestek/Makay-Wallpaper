@@ -106,15 +106,18 @@ class MakayLiveWallpaperService : WallpaperService() {
         }
 
         override fun onTouchEvent(event: MotionEvent?) {
-            if (event?.action != MotionEvent.ACTION_UP) return
+            // Bazı OEM'ler yalnız DOWN veya yalnız UP gönderir
+            val action = event?.actionMasked ?: return
+            if (action != MotionEvent.ACTION_UP && action != MotionEvent.ACTION_DOWN) return
+            if (action == MotionEvent.ACTION_DOWN) return // sayımı UP'ta yap; DOWN sadece izleme
             val gestures = WallpaperSettingsRepository.getInstance(applicationContext).gestures.value
             if (!gestures.enabled) return
             val now = System.currentTimeMillis()
-            if (now - lastTapAt > 450) tapCount = 0
+            if (now - lastTapAt > 550) tapCount = 0
             lastTapAt = now
             tapCount++
             handler.removeCallbacks(tapReset)
-            handler.postDelayed(tapReset, 420)
+            handler.postDelayed(tapReset, 500)
         }
 
         private fun handleTaps(count: Int) {
@@ -126,8 +129,10 @@ class MakayLiveWallpaperService : WallpaperService() {
                 else -> return
             }
             if (action == GestureAction.NONE) return
-            WallpaperController.performGesture(applicationContext, action)
-            reloadAndDraw(animate = true)
+            val changed = WallpaperController.performGesture(applicationContext, action)
+            if (changed || count >= 2) {
+                reloadAndDraw(animate = true)
+            }
         }
 
         private fun reloadAndDraw(animate: Boolean) {

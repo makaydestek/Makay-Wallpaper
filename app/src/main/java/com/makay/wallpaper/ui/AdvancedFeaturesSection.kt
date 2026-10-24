@@ -43,7 +43,6 @@ fun AdvancedFeaturesSection() {
     val effects by settings.effects.collectAsState()
     val behavior by settings.behavior.collectAsState()
     val dayPart by settings.dayPart.collectAsState()
-    val lockAlbumId by settings.lockAlbumId.collectAsState()
     val albumList by albumsRepo.albums.collectAsState()
     var backupMsg by remember { mutableStateOf<String?>(null) }
 
@@ -120,43 +119,6 @@ fun AdvancedFeaturesSection() {
                     idle = MaterialTheme.colorScheme.primary
                 ) {
                     Text(LanguageManager.t("Efektlerle yeniden uygula", "Re-apply with effects", context))
-                }
-            }
-        }
-
-        Text(
-            LanguageManager.t("Ana / kilit albümü", "Home / lock albums", context),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    LanguageManager.t(
-                        "Kilit ekranı için ayrı albüm (boş = ana ile aynı)",
-                        "Separate lock album (empty = same as home)",
-                        context
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                FilterChip(
-                    selected = lockAlbumId == null,
-                    onClick = { WallpaperController.setLockAlbum(context, null) },
-                    label = { Text(LanguageManager.t("Aynı", "Same", context)) }
-                )
-                albumList.forEach { a ->
-                    FilterChip(
-                        selected = lockAlbumId == a.id,
-                        onClick = { WallpaperController.setLockAlbum(context, a.id) },
-                        label = { Text(a.name) }
-                    )
                 }
             }
         }

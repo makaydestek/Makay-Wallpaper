@@ -6,6 +6,7 @@ import android.content.Intent
 import com.makay.wallpaper.core.WallpaperController
 import com.makay.wallpaper.core.WallpaperScheduler
 import com.makay.wallpaper.data.ScheduleRepository
+import com.makay.wallpaper.data.WallpaperSettingsRepository
 import com.makay.wallpaper.domain.model.ScheduleType
 import kotlin.random.Random
 
@@ -15,6 +16,11 @@ class ScheduleReceiver : BroadcastReceiver() {
         val app = context.applicationContext
         when (intent?.action) {
             ACTION_TIMER_TICK -> {
+                val timer = WallpaperSettingsRepository.getInstance(app).timer.value
+                if (!timer.enabled) {
+                    WallpaperScheduler.cancelTimer(app)
+                    return
+                }
                 WallpaperController.next(app)
                 WallpaperScheduler.rescheduleTimerAfterChange(app)
             }

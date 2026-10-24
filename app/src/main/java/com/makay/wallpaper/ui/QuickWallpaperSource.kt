@@ -32,9 +32,11 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.documentfile.provider.DocumentFile
 import com.makay.wallpaper.core.WallpaperController
 import com.makay.wallpaper.data.AlbumRepository
+import com.makay.wallpaper.data.WallpaperSettingsRepository
 import com.makay.wallpaper.util.FolderImageScanner
 import com.makay.wallpaper.util.ImageImportHelper
 import com.makay.wallpaper.util.LanguageManager
+import com.makay.wallpaper.util.LiveWallpaperHelper
 import com.makay.wallpaper.util.PermissionHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -77,6 +79,20 @@ fun QuickWallpaperSourceButtons(
         return repo.create(preferredName).id
     }
 
+    fun promptLiveWallpaperIfNeeded() {
+        // Her değişimde sistem seçicisini AÇMA — uygulama/ekran sürekli öne geliyordu.
+        val gesturesOn = WallpaperSettingsRepository.getInstance(context).gestures.value.enabled
+        if (!gesturesOn) return
+        if (LiveWallpaperHelper.isOurLiveWallpaperActive(context)) return
+        val prefs = context.getSharedPreferences("makay_wp_ui", android.content.Context.MODE_PRIVATE)
+        if (prefs.getBoolean("live_wp_hint_shown", false)) return
+        prefs.edit().putBoolean("live_wp_hint_shown", true).apply()
+        toast(
+            "Çift dokunuş için Ayarlar → Canlı duvar kağıdını ayarla",
+            "For double-tap: Settings → Set live wallpaper"
+        )
+    }
+
     val pickImages = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris: List<Uri> ->
@@ -107,6 +123,7 @@ fun QuickWallpaperSourceButtons(
                     "${local.size} görsel uygulandı",
                     "${local.size} images applied"
                 )
+                promptLiveWallpaperIfNeeded()
             } else {
                 toast("Albüm hazır; duvar kağıdı uygulanamadı", "Album ready; wallpaper failed")
             }
@@ -156,6 +173,7 @@ fun QuickWallpaperSourceButtons(
                     "${scanned.size} görsel uygulandı ($folderName)",
                     "${scanned.size} images applied ($folderName)"
                 )
+                promptLiveWallpaperIfNeeded()
             } else {
                 toast("Albüm hazır; duvar kağıdı uygulanamadı", "Album ready; wallpaper failed")
             }

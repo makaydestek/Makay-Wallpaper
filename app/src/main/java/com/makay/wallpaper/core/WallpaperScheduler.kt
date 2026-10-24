@@ -65,6 +65,8 @@ object WallpaperScheduler {
         wm.cancelUniqueWork(TIMER_UNIQUE)
         wm.cancelUniqueWork(TIMER_CHAIN_UNIQUE)
         wm.cancelAllWorkByTag(TIMER_CHAIN_UNIQUE)
+        // Periyodik iş adı ile de iptal (bazı cihazlarda UPDATE sonrası kalıntı)
+        runCatching { wm.cancelAllWorkByTag(TIMER_UNIQUE) }
         cancelExactTimerAlarm(app)
     }
 
