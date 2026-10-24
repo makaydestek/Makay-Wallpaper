@@ -16,6 +16,7 @@ import com.makay.wallpaper.data.ScheduleRepository
 import com.makay.wallpaper.data.WallpaperSettingsRepository
 import com.makay.wallpaper.domain.model.Schedule
 import com.makay.wallpaper.receiver.ScheduleReceiver
+import com.makay.wallpaper.util.FolderWatchManager
 import com.makay.wallpaper.worker.FolderScanWorker
 import com.makay.wallpaper.worker.WallpaperChangeWorker
 import java.util.Calendar
@@ -126,7 +127,7 @@ object WallpaperScheduler {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.NOT_REQUIRED)
             .build()
-        // Yedek tarama (anlık izleme FolderWatchManager ile); min periyot 15 dk
+        // İzlenen klasörler: yeni fotoğraflar için periyodik tarama (Wallpaper Changer tarzı)
         val request = PeriodicWorkRequestBuilder<FolderScanWorker>(15, TimeUnit.MINUTES)
             .setConstraints(constraints)
             .build()
@@ -135,9 +136,14 @@ object WallpaperScheduler {
             ExistingPeriodicWorkPolicy.UPDATE,
             request
         )
-        // İlk tarama hemen
+        scanFoldersNow(context)
+    }
+
+    /** Manuel «Klasörü tara» — yeni eklenen görselleri albüme ekler */
+    fun scanFoldersNow(context: Context) {
         val once = OneTimeWorkRequestBuilder<FolderScanWorker>().build()
-        WorkManager.getInstance(context).enqueue(once)
+        WorkManager.getInstance(context.applicationContext).enqueue(once)
+        FolderWatchManager.scanNow(context.applicationContext)
     }
 
     private fun scheduleExactTimerAlarm(context: Context, intervalMs: Long) {

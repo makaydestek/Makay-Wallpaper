@@ -259,22 +259,36 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     val liveActive =
                         com.makay.wallpaper.util.LiveWallpaperHelper.isOurLiveWallpaperActive(context)
+                    val a11yOn = com.makay.wallpaper.service.DoubleTapAccessibilityService.isEnabled(context)
                     Text(
-                        if (liveActive) {
-                            LanguageManager.t(
-                                "Canlı duvar kağıdı aktif — çift/üç dokunuş çalışır.",
-                                "Live wallpaper active — double/triple tap works.",
-                                context
-                            )
-                        } else {
-                            LanguageManager.t(
-                                "Jestler için Makay canlı duvar kağıdını ayarlamanız gerekir.",
-                                "Set Makay live wallpaper for home-screen gestures.",
-                                context
-                            )
-                        },
+                        LanguageManager.t(
+                            "Wallpaper Changer gibi ana ekranda çift dokunuş için:\n" +
+                                "1) Canlı duvar kağıdını ayarlayın\n" +
+                                "2) Xiaomi’de «Çift dokunuşla kilitle» kapalı olsun\n" +
+                                "3) MIUI’de dokunuş gelmezse aşağıdaki erişilebilirliği açın",
+                            "For home double-tap like Wallpaper Changer:\n" +
+                                "1) Set live wallpaper\n" +
+                                "2) Disable MIUI “Double tap to lock”\n" +
+                                "3) If taps still fail, enable accessibility below",
+                            context
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        LanguageManager.t(
+                            "Durum: canlı WP ${if (liveActive) "açık" else "kapalı"} · " +
+                                "erişilebilirlik ${if (a11yOn) "açık" else "kapalı"}",
+                            "Status: live WP ${if (liveActive) "on" else "off"} · " +
+                                "accessibility ${if (a11yOn) "on" else "off"}",
+                            context
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (liveActive || a11yOn) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        }
                     )
                     TvActionButton(
                         onClick = {
@@ -285,8 +299,24 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     ) {
                         Text(
                             LanguageManager.t(
-                                "Canlı duvar kağıdını ayarla",
-                                "Set live wallpaper",
+                                "1) Canlı duvar kağıdını ayarla",
+                                "1) Set live wallpaper",
+                                context
+                            )
+                        )
+                    }
+                    TvActionButton(
+                        onClick = {
+                            com.makay.wallpaper.service.DoubleTapAccessibilityService
+                                .openAccessibilitySettings(context)
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        idle = MaterialTheme.colorScheme.tertiary
+                    ) {
+                        Text(
+                            LanguageManager.t(
+                                "2) Jest erişilebilirliğini aç (MIUI)",
+                                "2) Enable gesture accessibility (MIUI)",
                                 context
                             )
                         )
@@ -296,9 +326,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                         gestures.enabled
                     ) { enabled ->
                         settings.setGestures(gestures.copy(enabled = enabled))
-                        if (enabled &&
-                            !com.makay.wallpaper.util.LiveWallpaperHelper.isOurLiveWallpaperActive(context)
-                        ) {
+                        if (enabled && !liveActive) {
                             com.makay.wallpaper.util.LiveWallpaperHelper.openLiveWallpaperSetup(context)
                         }
                     }

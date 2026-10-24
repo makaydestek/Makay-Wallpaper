@@ -134,33 +134,36 @@ class MakayLiveWallpaperService : WallpaperService() {
         }
 
         override fun onTouchEvent(event: MotionEvent?) {
-            // Bazı OEM'ler yalnız DOWN veya yalnız UP gönderir
-            val action = event?.actionMasked ?: return
-            if (action != MotionEvent.ACTION_UP && action != MotionEvent.ACTION_DOWN) return
-            if (action == MotionEvent.ACTION_DOWN) return // sayımı UP'ta yap; DOWN sadece izleme
+            if (event == null) return
             val gestures = WallpaperSettingsRepository.getInstance(applicationContext).gestures.value
             if (!gestures.enabled) return
-            val now = System.currentTimeMillis()
-            if (now - lastTapAt > 550) tapCount = 0
-            lastTapAt = now
-            tapCount++
-            handler.removeCallbacks(tapReset)
-            handler.postDelayed(tapReset, 500)
+            // DOWN + UP: bazı OEM yalnız birini iletir — ikisini de say
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {
+                    val now = System.currentTimeMillis()
+                    // Aynı dokunuşun DOWN+UP çiftini tek say: 80ms içinde ikinciyi yok say
+                    if (now - lastTapAt < 80) return
+                    if (now - lastTapAt > 500) tapCount = 0
+                    lastTapAt = now
+                    tapCount++
+                    handler.removeCallbacks(tapReset)
+                    handler.postDelayed(tapReset, 450)
+                }
+            }
         }
 
         private fun handleTaps(count: Int) {
             val gestures = WallpaperSettingsRepository.getInstance(applicationContext).gestures.value
             if (!gestures.enabled) return
-            val action: GestureAction = when (count) {
-                2 -> gestures.doubleTapAction
-                3 -> gestures.tripleTapAction
+            // DOWN+UP her dokunuşu 2 kez artırabilir → 2 fiziksel dokunuş ≈ 2–4 sayım
+            val use: GestureAction = when {
+                count >= 5 -> gestures.tripleTapAction
+                count >= 2 -> gestures.doubleTapAction
                 else -> return
             }
-            if (action == GestureAction.NONE) return
-            val changed = WallpaperController.performGesture(applicationContext, action)
-            if (changed || count >= 2) {
-                reloadAndDraw(animate = true)
-            }
+            if (use == GestureAction.NONE) return
+            WallpaperController.performGesture(applicationContext, use)
+            reloadAndDraw(animate = true)
         }
 
         private fun reloadAndDraw(animate: Boolean) {

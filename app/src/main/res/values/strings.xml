@@ -12,4 +12,6 @@
     <string name="widget_prev">Önceki</string>
     <string name="widget_next_album">Sonraki albüm</string>
     <string name="live_wallpaper_description">Makay Wallpaper canlı duvar kağıdı</string>
+    <string name="gesture_accessibility_description">Ana ekranda çift / üç dokunuşla duvar kağıdı değiştirmek için kullanılır. Yalnızca jest algılama yapar; şifre veya kişisel veri okumaz.</string>
+    <string name="gesture_accessibility_label">Makay Wallpaper jestleri</string>
 </resources>
