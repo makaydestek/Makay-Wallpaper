@@ -24,7 +24,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,7 +42,10 @@ import com.makay.wallpaper.domain.model.IntervalUnit
 import com.makay.wallpaper.util.LanguageManager
 import com.makay.wallpaper.util.PermissionHelper
 import com.makay.wallpaper.util.rememberMediaPermissionState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -57,6 +62,7 @@ fun HomeScreen(
     val context = LocalContext.current
     val settings = remember { WallpaperSettingsRepository.getInstance(context) }
     val albums = remember { AlbumRepository.getInstance(context) }
+    val scope = rememberCoroutineScope()
     val timer by settings.timer.collectAsState()
     val activeAlbumId by settings.activeAlbumId.collectAsState()
     val activeIndex by settings.activeIndex.collectAsState()
@@ -65,6 +71,29 @@ fun HomeScreen(
     val albumList by albums.albums.collectAsState()
     val hasPermission = rememberMediaPermissionState()
     val landscapePaused = WallpaperController.isLandscapePaused(context)
+    var navigating by remember { mutableStateOf(false) }
+
+    fun runNav(block: () -> Boolean) {
+        if (navigating) return
+        navigating = true
+        scope.launch {
+            val ok = withContext(Dispatchers.Default) {
+                runCatching { block() }.getOrDefault(false)
+            }
+            navigating = false
+            if (!ok) {
+                android.widget.Toast.makeText(
+                    context,
+                    LanguageManager.t(
+                        "Albüm boş veya aktif albüm yok",
+                        "Album empty or no active album",
+                        context
+                    ),
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
 
     val current = remember(activeAlbumId, activeIndex, albumList) {
         WallpaperController.currentImage(context)
@@ -194,35 +223,13 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         TvActionButton(
-                            onClick = {
-                                if (!WallpaperController.prev(context)) {
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        LanguageManager.t(
-                                            "Albüm boş veya aktif albüm yok",
-                                            "Album empty or no active album",
-                                            context
-                                        ),
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            },
+                            onClick = { runNav { WallpaperController.prev(context) } },
                             modifier = Modifier.weight(1f).height(48.dp),
                             idle = MaterialTheme.colorScheme.secondary
                         ) { Text(LanguageManager.t("Önceki", "Prev", context)) }
                         TvActionButton(
                             onClick = {
-                                if (!WallpaperController.next(context, sequential = true)) {
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        LanguageManager.t(
-                                            "Albüm boş veya aktif albüm yok",
-                                            "Album empty or no active album",
-                                            context
-                                        ),
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
-                                }
+                                runNav { WallpaperController.next(context, sequential = true) }
                             },
                             modifier = Modifier.weight(1f).height(48.dp),
                             idle = MaterialTheme.colorScheme.primary

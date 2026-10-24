@@ -541,66 +541,45 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
 
             AdvancedFeaturesSection()
 
-            Text(
-                LanguageManager.t("Güncelleme", "Update", context),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                Column(
-                    Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        LanguageManager.t(
-                            "Açılışta GitHub Releases kontrol edilir. Kaynak: github.com/makaydestek/Makay-Wallpaper",
-                            "Checked on launch via GitHub Releases. Source: github.com/makaydestek/Makay-Wallpaper",
+            TvActionButton(
+                onClick = { updateVm?.checkManual() },
+                enabled = updateVm != null &&
+                    updateState?.checking != true &&
+                    updateState?.downloading != true,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                idle = androidx.compose.ui.graphics.Color(0xFF1565C0)
+            ) {
+                Text(
+                    when {
+                        updateState?.checking == true -> LanguageManager.t(
+                            "Kontrol ediliyor…",
+                            "Checking…",
                             context
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    TvActionButton(
-                        onClick = { updateVm?.checkManual() },
-                        enabled = updateVm != null &&
-                            updateState?.checking != true &&
-                            updateState?.downloading != true,
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        idle = androidx.compose.ui.graphics.Color(0xFF1565C0)
-                    ) {
-                        Text(
-                            when {
-                                updateState?.checking == true -> LanguageManager.t(
-                                    "Kontrol ediliyor…",
-                                    "Checking…",
-                                    context
-                                )
-                                updateState?.downloading == true -> LanguageManager.t(
-                                    "İndiriliyor…",
-                                    "Downloading…",
-                                    context
-                                )
-                                else -> LanguageManager.t(
-                                    "Güncellemeleri Denetle",
-                                    "Check for Updates",
-                                    context
-                                )
-                            },
-                            style = MaterialTheme.typography.titleMedium
                         )
-                    }
-                    val msg = updateState?.statusMessage ?: updateState?.error
-                    if (!msg.isNullOrBlank()) {
-                        Text(
-                            msg,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (updateState?.error != null)
-                                MaterialTheme.colorScheme.error
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                        updateState?.downloading == true -> LanguageManager.t(
+                            "İndiriliyor…",
+                            "Downloading…",
+                            context
                         )
-                    }
-                }
+                        else -> LanguageManager.t(
+                            "Güncelleme kontrol et",
+                            "Check for updates",
+                            context
+                        )
+                    },
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            val updateMsg = updateState?.statusMessage ?: updateState?.error
+            if (!updateMsg.isNullOrBlank()) {
+                Text(
+                    updateMsg,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (updateState?.error != null)
+                        MaterialTheme.colorScheme.error
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             Text(

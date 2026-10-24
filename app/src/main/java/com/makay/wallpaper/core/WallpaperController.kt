@@ -44,9 +44,12 @@ object WallpaperController {
         return album.images[index]
     }
 
-    fun applyCurrent(context: Context): Boolean {
+    /**
+     * @param allowDayPart true yalnızca zamanlayıcı/worker — manuel geçişte albüm değişmesin
+     */
+    fun applyCurrent(context: Context, allowDayPart: Boolean = false): Boolean {
         if (isLandscapePaused(context)) return false
-        applyDayPartIfNeeded(context)
+        if (allowDayPart) applyDayPartIfNeeded(context)
         val settings = WallpaperSettingsRepository.getInstance(context)
         val home = currentImage(context, forLock = false) ?: return false
         val target = settings.target.value
@@ -172,12 +175,17 @@ object WallpaperController {
     /**
      * @param sequential true ise (UI / jest) rastgele ayarı yok sayılır.
      */
-    fun next(context: Context, sequential: Boolean = false): Boolean {
+    fun next(
+        context: Context,
+        sequential: Boolean = false,
+        allowDayPart: Boolean = false
+    ): Boolean {
         if (isLandscapePaused(context)) return false
-        applyDayPartIfNeeded(context)
+        if (allowDayPart) applyDayPartIfNeeded(context)
         val settings = WallpaperSettingsRepository.getInstance(context)
+        // Rastgele yalnız AKTİF albüm içinde — başka klasöre geçmez
         if (!sequential && (settings.random.value || settings.timer.value.random)) {
-            return random(context)
+            return random(context, allowDayPart = false)
         }
         return advance(context, +1)
     }
@@ -187,9 +195,9 @@ object WallpaperController {
         return advance(context, -1)
     }
 
-    fun random(context: Context): Boolean {
+    fun random(context: Context, allowDayPart: Boolean = false): Boolean {
         if (isLandscapePaused(context)) return false
-        applyDayPartIfNeeded(context)
+        if (allowDayPart) applyDayPartIfNeeded(context)
         val settings = WallpaperSettingsRepository.getInstance(context)
         val albums = AlbumRepository.getInstance(context)
         val albumId = settings.activeAlbumId.value ?: return false
@@ -202,7 +210,7 @@ object WallpaperController {
                 settings.setLockIndex(Random.nextInt(lockAlbum.images.size))
             }
         }
-        return applyCurrent(context)
+        return applyCurrent(context, allowDayPart = false)
     }
 
     fun setAlbum(context: Context, albumId: String, startIndex: Int = 0): Boolean {

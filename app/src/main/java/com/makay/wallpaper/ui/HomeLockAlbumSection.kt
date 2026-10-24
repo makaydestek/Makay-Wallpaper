@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,9 +27,6 @@ import com.makay.wallpaper.data.AlbumRepository
 import com.makay.wallpaper.data.WallpaperSettingsRepository
 import com.makay.wallpaper.util.LanguageManager
 
-/**
- * Ana ekran ve kilit ekranı için ayrı albüm seçimi (zorunlu net ayrım).
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeLockAlbumSection() {
@@ -38,10 +36,12 @@ fun HomeLockAlbumSection() {
     val albumList by albumsRepo.albums.collectAsState()
     val activeId by settings.activeAlbumId.collectAsState()
     val lockAlbumId by settings.lockAlbumId.collectAsState()
+    val activeName = albumList.find { it.id == activeId }?.name
+    val lockName = lockAlbumId?.let { id -> albumList.find { it.id == id }?.name }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            LanguageManager.t("Ana / kilit albümü", "Home / lock albums", context),
+            LanguageManager.t("Ana ve kilit ekranı", "Home and lock screen", context),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
         )
@@ -55,29 +55,37 @@ fun HomeLockAlbumSection() {
             ) {
                 Text(
                     LanguageManager.t(
-                        "Ana ve kilit ekranı için ayrı albüm seçebilirsiniz. " +
-                            "Kilit için «Aynı» dışında bir albüm seçerseniz iki ekran bağımsız kalır.",
-                        "Pick separate albums for home and lock. " +
-                            "Choosing a lock album other than Same keeps the screens independent.",
+                        "Ana ekran: zamanlayıcı ve çift dokunuş bu albümü kullanır.\n" +
+                            "Kilit ekranı: «Ana ile aynı» = kilide de aynı fotoğraflar. " +
+                            "Başka albüm seçerseniz kilit bağımsız kalır.",
+                        "Home: timer and double-tap use this album.\n" +
+                            "Lock: Same as home = lock uses the same photos. " +
+                            "Pick another album for an independent lock.",
                         context
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                HorizontalDivider()
+
                 Text(
-                    LanguageManager.t("Ana ekran albümü", "Home screen album", context),
+                    LanguageManager.t(
+                        "Ana ekran albümü" + (activeName?.let { " → $it" } ?: ""),
+                        "Home album" + (activeName?.let { " → $it" } ?: ""),
+                        context
+                    ),
                     fontWeight = FontWeight.SemiBold
                 )
                 if (albumList.isEmpty()) {
                     Text(
                         LanguageManager.t(
-                            "Önce ana ekrandan görsel veya klasör seçin.",
-                            "Pick images or a folder from Home first.",
+                            "Önce ana ekrandan klasör veya görsel seçin.",
+                            "Pick a folder or images from Home first.",
                             context
                         ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
                     )
                 } else {
                     FlowRow(
@@ -88,30 +96,39 @@ fun HomeLockAlbumSection() {
                             FilterChip(
                                 selected = activeId == a.id,
                                 onClick = {
-                                    if (WallpaperController.setAlbum(context, a.id)) {
-                                        Toast.makeText(
-                                            context,
-                                            LanguageManager.t(
-                                                "Ana ekran: ${a.name}",
-                                                "Home: ${a.name}",
-                                                context
-                                            ),
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
+                                    WallpaperController.setAlbum(context, a.id)
+                                    Toast.makeText(
+                                        context,
+                                        LanguageManager.t(
+                                            "Ana ekran: ${a.name}",
+                                            "Home: ${a.name}",
+                                            context
+                                        ),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 },
-                                label = {
-                                    Text(
-                                        a.name + if (a.images.isEmpty()) " (0)" else " (${a.images.size})"
-                                    )
-                                }
+                                label = { Text("${a.name} (${a.images.size})") }
                             )
                         }
                     }
                 }
 
+                HorizontalDivider()
+
                 Text(
-                    LanguageManager.t("Kilit ekranı albümü", "Lock screen album", context),
+                    LanguageManager.t(
+                        "Kilit ekranı" + if (lockAlbumId == null) {
+                            " → ana ile aynı"
+                        } else {
+                            lockName?.let { " → $it" }.orEmpty()
+                        },
+                        "Lock screen" + if (lockAlbumId == null) {
+                            " → same as home"
+                        } else {
+                            lockName?.let { " → $it" }.orEmpty()
+                        },
+                        context
+                    ),
                     fontWeight = FontWeight.SemiBold
                 )
                 FlowRow(
@@ -125,8 +142,8 @@ fun HomeLockAlbumSection() {
                             Toast.makeText(
                                 context,
                                 LanguageManager.t(
-                                    "Kilit = ana ile aynı",
-                                    "Lock = same as home",
+                                    "Kilit = ana ekran albümü",
+                                    "Lock = home album",
                                     context
                                 ),
                                 Toast.LENGTH_SHORT
@@ -144,18 +161,14 @@ fun HomeLockAlbumSection() {
                                 Toast.makeText(
                                     context,
                                     LanguageManager.t(
-                                        "Kilit: ${a.name}",
-                                        "Lock: ${a.name}",
+                                        "Kilit ayrı: ${a.name}",
+                                        "Lock separate: ${a.name}",
                                         context
                                     ),
                                     Toast.LENGTH_SHORT
                                 ).show()
                             },
-                            label = {
-                                Text(
-                                    a.name + if (a.images.isEmpty()) " (0)" else " (${a.images.size})"
-                                )
-                            }
+                            label = { Text("${a.name} (${a.images.size})") }
                         )
                     }
                 }
@@ -166,17 +179,9 @@ fun HomeLockAlbumSection() {
                         Toast.makeText(
                             context,
                             if (ok) {
-                                LanguageManager.t(
-                                    "Ana ve kilit uygulandı",
-                                    "Home and lock applied",
-                                    context
-                                )
+                                LanguageManager.t("Uygulandı", "Applied", context)
                             } else {
-                                LanguageManager.t(
-                                    "Uygulanamadı — albüm boş olabilir",
-                                    "Apply failed — album may be empty",
-                                    context
-                                )
+                                LanguageManager.t("Uygulanamadı", "Failed", context)
                             },
                             Toast.LENGTH_SHORT
                         ).show()

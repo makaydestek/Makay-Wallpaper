@@ -52,6 +52,7 @@ fun SchedulesScreen(onNavigateBack: () -> Unit) {
     val schedules by repo.schedules.collectAsState()
     val albumList by albums.albums.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
+    var showHelp by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -66,6 +67,11 @@ fun SchedulesScreen(onNavigateBack: () -> Unit) {
                     TvIconButton(onClick = onNavigateBack) {
                         Text("←", style = MaterialTheme.typography.titleLarge)
                     }
+                },
+                actions = {
+                    TvIconButton(onClick = { showHelp = true }) {
+                        Text("?", style = MaterialTheme.typography.titleLarge)
+                    }
                 }
             )
         }
@@ -76,6 +82,31 @@ fun SchedulesScreen(onNavigateBack: () -> Unit) {
                 .padding(padding)
                 .padding(16.dp)
         ) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        LanguageManager.t("Ne işe yarar?", "What is this for?", context),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        LanguageManager.t(
+                            "Belirli saatlerde duvar kağıdını değiştirir veya başka bir albüme geçer. " +
+                                "Örn. sabah iş albümü, akşam ev albümü. Zamanlayıcıdan farkı: " +
+                                "sürekli aralık değil, taktığınız saatlerde çalışır.",
+                            "Changes wallpaper or switches albums at set times. " +
+                                "E.g. work album in the morning, home at night. Unlike the timer, " +
+                                "it runs at clock times you choose — not on a repeating interval.",
+                            context
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             TvActionButton(
                 onClick = { showAdd = true },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -155,6 +186,37 @@ fun SchedulesScreen(onNavigateBack: () -> Unit) {
                 repo.add(schedule)
                 WallpaperScheduler.scheduleAllAlarms(context)
                 showAdd = false
+            }
+        )
+    }
+
+    if (showHelp) {
+        AlertDialog(
+            onDismissRequest = { showHelp = false },
+            title = {
+                Text(LanguageManager.t("Programlar nedir?", "What are schedules?", context))
+            },
+            text = {
+                Text(
+                    LanguageManager.t(
+                        "Zamanlayıcı sürekli aralıklarla (örn. her 5 dk) değişim yapar.\n\n" +
+                            "Programlar ise seçtiğiniz saatlerde çalışır:\n" +
+                            "• Duvar kağıdı: o anda sonraki / rastgele görsele geçer\n" +
+                            "• Albüm: o saatte belirtilen albüme geçer\n\n" +
+                            "Örnek: 08:00 iş klasörü, 19:00 ev klasörü.",
+                        "The timer changes on a repeating interval (e.g. every 5 min).\n\n" +
+                            "Schedules run at clock times you set:\n" +
+                            "• Wallpaper: advance / random at that time\n" +
+                            "• Album: switch to a chosen album\n\n" +
+                            "Example: 08:00 work folder, 19:00 home folder.",
+                        context
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showHelp = false }) {
+                    Text(LanguageManager.t("Anladım", "Got it", context))
+                }
             }
         )
     }

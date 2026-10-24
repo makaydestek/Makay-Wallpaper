@@ -10,10 +10,13 @@ object LiveWallpaperHelper {
 
     fun isOurLiveWallpaperActive(context: Context): Boolean {
         return runCatching {
-            val info = WallpaperManager.getInstance(context).wallpaperInfo
-            info != null &&
-                info.packageName == context.packageName &&
-                info.serviceName == MakayLiveWallpaperService::class.java.name
+            val info = WallpaperManager.getInstance(context).wallpaperInfo ?: return false
+            if (info.packageName != context.packageName) return false
+            val svc = info.serviceName.orEmpty()
+            val expected = MakayLiveWallpaperService::class.java.name
+            svc == expected ||
+                svc.endsWith(".MakayLiveWallpaperService") ||
+                svc.contains("MakayLiveWallpaperService")
         }.getOrDefault(false)
     }
 

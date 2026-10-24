@@ -67,8 +67,7 @@ object WallpaperApplier {
     }
 
     /**
-     * Kırp + seçilen moda göre tam hedef çözünürlüğe ölçekle.
-     * Çıktı her zaman tam ekran boyutunda olur; boşluk kalmaz (FIT hariç şerit eklenir).
+     * Sistem duvar kağıdı için her zaman ekranı dolduran bitmap üretir (siyah şerit yok).
      */
     fun prepareForDisplay(
         context: Context,
@@ -76,9 +75,11 @@ object WallpaperApplier {
         crop: RectF,
         fit: DisplayFitSettings = WallpaperSettingsRepository.getInstance(context).displayFit.value
     ): Bitmap? {
-        val cropped = decodeCropped(context, uri, crop, fit) ?: return null
-        val (tw, th) = resolveTargetSize(context, fit, cropped.width, cropped.height)
-        val scaled = scaleToExact(cropped, tw, th, fit.fitMode, fit.letterboxColor)
+        // Ana ekranda siyah boşluk olmasın: sistem WP için FILL zorla
+        val effective = fit.copy(fitMode = FitMode.FILL, autoRotateDimsForLandscape = false)
+        val cropped = decodeCropped(context, uri, crop, effective) ?: return null
+        val (tw, th) = resolveTargetSize(context, effective, cropped.width, cropped.height)
+        val scaled = scaleToExact(cropped, tw, th, FitMode.FILL, Color.BLACK)
         if (scaled !== cropped && !cropped.isRecycled) cropped.recycle()
         val effects = WallpaperSettingsRepository.getInstance(context).effects.value
         val withFx = ImageEffectsProcessor.apply(scaled, effects)
@@ -99,16 +100,19 @@ object WallpaperApplier {
         val (tw, th) = if (fit != null) {
             resolveTargetSize(context, fit, bounds.outWidth, bounds.outHeight)
         } else {
-            2048 to 2048
+            deviceScreenSize(context)
         }
-        // Hedefin ~2 katına kadar oku; kalite için
+        // Bellek: tam hedef boyuta örnekle (2x OOM / yeniden başlatma yapıyordu)
         val sample = calculateInSampleSize(
             bounds.outWidth,
             bounds.outHeight,
-            tw * 2,
-            th * 2
+            tw,
+            th
         )
-        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        val opts = BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
         val full = openStream(context, uri)?.use { BitmapFactory.decodeStream(it, null, opts) }
             ?: return null
 
@@ -133,14 +137,22 @@ object WallpaperApplier {
         sourceW: Int = 0,
         sourceH: Int = 0
     ): Pair<Int, Int> {
+        // MIUI: desiredMinimum bazen 2x genişlik → yarım ekran siyah. Statik WP için gerçek ekran.
+        val (sw, sh) = deviceScreenSize(context)
         var (w, h) = when (fit.resolutionSource) {
             ResolutionSource.CUSTOM -> fit.portraitSize()
-            ResolutionSource.DEVICE -> deviceScreenSize(context)
+            ResolutionSource.DEVICE -> sw to sh
+        }
+        // Ekrandan küçük olmasın
+        if (w < sw) w = sw
+        if (h < sh) h = sh
+        // Parallax 2x genişliği kullanma — siyah alt/yan üretiyor
+        if (w > sw * 1.15f && h <= sh * 1.15f) {
+            w = sw
+            h = sh
         }
         if (fit.autoRotateDimsForLandscape && sourceW > 0 && sourceH > 0 && sourceW > sourceH && w < h) {
-            val t = w
-            w = h
-            h = t
+            // Kapalı tutulmalı; yine de güvenlik
         }
         return w.coerceAtLeast(240) to h.coerceAtLeast(240)
     }
@@ -164,9 +176,6 @@ object WallpaperApplier {
         }
     }
 
-    /**
-     * Kaynağı tam [outW]x[outH] bitmap'e dönüştürür.
-     */
     fun scaleToExact(
         source: Bitmap,
         outW: Int,
@@ -199,12 +208,9 @@ object WallpaperApplier {
                 )
             }
             FitMode.FILL -> {
-                // Center-crop: ekranı tamamen kapla, fazla kenarları at
                 val scale = max(outW.toFloat() / source.width, outH.toFloat() / source.height)
-                val dw = source.width * scale
-                val dh = source.height * scale
-                val left = (outW - dw) / 2f
-                val top = (outH - dh) / 2f
+                val left = (outW - source.width * scale) / 2f
+                val top = (outH - source.height * scale) / 2f
                 val matrix = Matrix().apply {
                     setScale(scale, scale)
                     postTranslate(left, top)
@@ -215,9 +221,6 @@ object WallpaperApplier {
         return out
     }
 
-    /**
-     * Görsel üzerinde hedef en-boy oranına göre ortalanmış kırpma dikdörtgeni (0–1).
-     */
     fun centeredCropForAspect(imageW: Int, imageH: Int, targetW: Int, targetH: Int): RectF {
         if (imageW <= 0 || imageH <= 0 || targetW <= 0 || targetH <= 0) {
             return RectF(0f, 0f, 1f, 1f)
@@ -225,12 +228,10 @@ object WallpaperApplier {
         val imageAspect = imageW.toFloat() / imageH
         val targetAspect = targetW.toFloat() / targetH
         return if (imageAspect > targetAspect) {
-            // Görsel daha geniş → yanları kırp
             val cropW = targetAspect / imageAspect
             val left = (1f - cropW) / 2f
             RectF(left, 0f, left + cropW, 1f)
         } else {
-            // Görsel daha uzun → üst/alt kırp
             val cropH = imageAspect / targetAspect
             val top = (1f - cropH) / 2f
             RectF(0f, top, 1f, top + cropH)
@@ -243,8 +244,9 @@ object WallpaperApplier {
         target: WallpaperTarget
     ) {
         val wm = WallpaperManager.getInstance(context)
-        val (tw, th) = bitmap.width to bitmap.height
-        runCatching { wm.suggestDesiredDimensions(tw, th) }
+        val (sw, sh) = deviceScreenSize(context)
+        // İstenen boyutu ekranla hizala (MIUI yarım ekran bug'ı)
+        runCatching { wm.suggestDesiredDimensions(sw, sh) }
 
         val which = when (target) {
             WallpaperTarget.HOME -> WallpaperManager.FLAG_SYSTEM
@@ -252,9 +254,8 @@ object WallpaperApplier {
             WallpaperTarget.BOTH -> WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            // visibleCropHint = tüm bitmap; sistem ekstra kırpmaz
-            val hint = Rect(0, 0, bitmap.width, bitmap.height)
-            wm.setBitmap(bitmap, hint, true, which)
+            // null cropHint: sistem tam bitmap'i kullansın (Rect bazen siyah şerit bırakır)
+            wm.setBitmap(bitmap, null, true, which)
         } else {
             @Suppress("DEPRECATION")
             wm.setBitmap(bitmap)
@@ -263,7 +264,6 @@ object WallpaperApplier {
 
     private fun openStream(context: Context, uri: Uri): InputStream? {
         runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()?.let { return it }
-        // file:// veya düz dosya yolu (uygulama içi kopyalar)
         val path = when {
             uri.scheme.equals("file", ignoreCase = true) -> uri.path
             uri.scheme.isNullOrBlank() -> uri.toString()

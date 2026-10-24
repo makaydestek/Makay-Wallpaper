@@ -70,7 +70,35 @@ class MakayLiveWallpaperService : WallpaperService() {
                 registerReceiver(changeReceiver, filter)
             }
             setTouchEventsEnabled(true)
+            setOffsetNotificationsEnabled(false)
             reloadAndDraw(animate = false)
+        }
+
+        override fun onCommand(
+            action: String?,
+            x: Int,
+            y: Int,
+            z: Int,
+            extras: android.os.Bundle?,
+            resultRequested: Boolean
+        ): android.os.Bundle? {
+            // Bazı launcher'lar dokunuşu onCommand ile iletir
+            if (action != null && (
+                    action.contains("tap", ignoreCase = true) ||
+                        action.contains("click", ignoreCase = true)
+                    )
+            ) {
+                val gestures = WallpaperSettingsRepository.getInstance(applicationContext).gestures.value
+                if (gestures.enabled) {
+                    val now = System.currentTimeMillis()
+                    if (now - lastTapAt > 550) tapCount = 0
+                    lastTapAt = now
+                    tapCount++
+                    handler.removeCallbacks(tapReset)
+                    handler.postDelayed(tapReset, 500)
+                }
+            }
+            return super.onCommand(action, x, y, z, extras, resultRequested)
         }
 
         override fun onDestroy() {

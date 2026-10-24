@@ -21,7 +21,7 @@ class ScheduleReceiver : BroadcastReceiver() {
                     WallpaperScheduler.cancelTimer(app)
                     return
                 }
-                WallpaperController.next(app)
+                WallpaperController.next(app, allowDayPart = true)
                 WallpaperScheduler.rescheduleTimerAfterChange(app)
             }
             ACTION_SCHEDULE, null -> {

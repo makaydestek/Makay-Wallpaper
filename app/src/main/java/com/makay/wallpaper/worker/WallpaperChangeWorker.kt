@@ -21,7 +21,8 @@ class WallpaperChangeWorker(
                 WallpaperScheduler.cancelTimer(applicationContext)
                 return@runCatching
             }
-            WallpaperController.next(applicationContext)
+            // Zamanlayıcı: yalnız aktif albüm; gün-saati albüm geçişi worker'da
+            WallpaperController.next(applicationContext, allowDayPart = true)
             val interval = timer.intervalMillis()
             if (interval < 15L * 60_000L) {
                 WallpaperScheduler.rescheduleTimerAfterChange(applicationContext)

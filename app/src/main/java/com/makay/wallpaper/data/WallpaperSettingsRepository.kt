@@ -10,6 +10,7 @@ import com.makay.wallpaper.domain.model.DisplayFitSettings
 import com.makay.wallpaper.domain.model.FitMode
 import com.makay.wallpaper.domain.model.GestureSettings
 import com.makay.wallpaper.domain.model.ImageEffects
+import com.makay.wallpaper.domain.model.ResolutionSource
 import com.makay.wallpaper.domain.model.TimerSettings
 import com.makay.wallpaper.domain.model.WallpaperTarget
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -227,13 +228,15 @@ class WallpaperSettingsRepository private constructor(context: Context) {
     }
 
     private fun loadDisplayFit(): DisplayFitSettings {
-        // v3: ekranı doldur (FILL) — FIT üst/alt siyah şerit bırakıyordu
-        if (!prefs.getBoolean(KEY_FIT_MIGRATED_V3, false)) {
+        // v4: MIUI yarım ekran / siyah alt — FILL + cihaz çözünürlüğü
+        if (!prefs.getBoolean(KEY_FIT_MIGRATED_V4, false)) {
             val migrated = DisplayFitSettings(
                 fitMode = FitMode.FILL,
+                resolutionSource = ResolutionSource.DEVICE,
                 autoRotateDimsForLandscape = false
             )
             prefs.edit()
+                .putBoolean(KEY_FIT_MIGRATED_V4, true)
                 .putBoolean(KEY_FIT_MIGRATED_V3, true)
                 .putBoolean(KEY_FIT_MIGRATED_V2, true)
                 .putString(KEY_DISPLAY_FIT, gson.toJson(migrated))
@@ -277,6 +280,7 @@ class WallpaperSettingsRepository private constructor(context: Context) {
         private const val KEY_DISPLAY_FIT = "display_fit"
         private const val KEY_FIT_MIGRATED_V2 = "fit_migrated_v2"
         private const val KEY_FIT_MIGRATED_V3 = "fit_migrated_v3"
+        private const val KEY_FIT_MIGRATED_V4 = "fit_migrated_v4"
         private const val KEY_LAST_LOCK_URI = "last_lock_uri"
         private const val KEY_EFFECTS = "effects"
         private const val KEY_BEHAVIOR = "behavior"
