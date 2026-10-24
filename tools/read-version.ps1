@@ -1,27 +1,23 @@
-param(
-    [string]$Version,
-    [string]$Code
-)
+# MakayWallpaper - VERSION.txt ile build.gradle senkron kontrolu
+# Cikti: VERSION|CODE   ornek: 1.0.1|1000001
+# Not: code formul app/build.gradle.kts ile AYNI olmak zorunda:
+#      major * 1_000_000 + minor * 1_000 + patch
+# APK adi: APK\MakayWallpaper_vX.Y.Z.apk
 
-# VERSION.txt içeriğini oku
-$content = Get-Content -Path "VERSION.txt" -Raw
-$content = $content.Trim()
+$ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $PSScriptRoot
+$versionFile = Join-Path $root "VERSION.txt"
 
-# Version parçalarını ayır
-$parts = $content.Split('.')
-if ($parts.Count -ne 3) {
-    Write-Error "VERSION.txt 3 parçadan oluşmalı (major.minor.patch)"
+if (-not (Test-Path $versionFile)) {
+    Write-Error "VERSION.txt yok"
     exit 1
 }
 
-# Version bilgisini çıkar
-$Version = $content
+$v = (Get-Content -Path $versionFile -Raw).Trim()
+if ($v -notmatch '^(\d+)\.(\d+)\.(\d+)$') {
+    Write-Error "Gecersiz surum: '$v'"
+    exit 1
+}
 
-# versionCode hesapla: major * 1_000_000 + minor * 1_000 + patch
-$maj = [int]$parts[0]
-$min = [int]$parts[1]
-$pat = [int]$parts[2]
-$code = $maj * 1000000 + $min * 1000 + $pat
-
-# Output'u pipe ile batch'e yaz
-Write-Output "$Version|$code"
+$code = ([int]$Matches[1] * 1000000) + ([int]$Matches[2] * 1000) + [int]$Matches[3]
+Write-Output "$v|$code"

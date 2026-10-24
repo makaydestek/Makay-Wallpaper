@@ -2,6 +2,12 @@
 
 **Makay Eko sistemi** için geliştirilen, Wallpaper Changer Pro'nun tüm ücretsiz ve profesyonel özelliklerini barındıran duwallpaper değiştirici uygulaması.
 
+### Güncelleme (MakayCleaner ile aynı)
+- Kaynak: [GitHub Releases — makaydestek/Makay-Wallpaper](https://github.com/makaydestek/Makay-Wallpaper/releases)
+- Açılışta otomatik kontrol → bildirim + diyalog → SHA-256 + imza → kurulum
+- Ayarlar → **Güncellemeleri Denetle** (manuel)
+- Yayın: `APK-Hazirla.bat` (sürüm artar, `APK\MakayWallpaper_vX.Y.Z.apk` üretir, release yükler, eski sürümleri siler)
+
 ---
 
 ## 📋 Tam Özellik Listesi (Wallpaper Changer Pro'dan Tüm Özellikler)

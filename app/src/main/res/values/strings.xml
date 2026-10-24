@@ -6,11 +6,10 @@
     <string name="settings">Ayarlar</string>
     <string name="schedule">Zamanlayıcı</string>
     <string name="random">Rastgele</string>
-    <string name="crop">Kirp</string>
-    <string name="wallpaper_değişti">Duwallpaper değiştirildi</string>
-    <string name="hata_bir_şey_yanlış">Bir şeyler yanlış gitti, lütfen tekrar deneyin.</string>
-    <string name="bilgi_yeni_resimler_tarandı">Yeni taranan resimler taranıyor...</string>
-    <string name="bilgi_kirpma_yolu_kaydedildi">Kirpma yolu kaydedildi.</string>
+    <string name="crop">Kırp</string>
     <string name="widget_default_text">Makay Wallpaper</string>
     <string name="widget_next">Sonraki</string>
+    <string name="widget_prev">Önceki</string>
+    <string name="widget_next_album">Sonraki albüm</string>
+    <string name="live_wallpaper_description">Makay Wallpaper canlı duvar kağıdı</string>
 </resources>

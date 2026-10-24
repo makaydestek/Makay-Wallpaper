@@ -28,7 +28,7 @@ set "GRADLEW=%PROJECT_DIR%\gradlew.bat"
 set "BUMP_PS1=%PROJECT_DIR%\tools\bump-version.ps1"
 set "READ_PS1=%PROJECT_DIR%\tools\read-version.ps1"
 set "VERSION_FILE=%PROJECT_DIR%\VERSION.txt"
-set "REPO=makaydestek/makay-wallpaper"
+set "REPO=makaydestek/Makay-Wallpaper"
 set "NOPAUSE=0"
 if /i "%~1"=="/nopause" set "NOPAUSE=1"
 
@@ -129,11 +129,9 @@ echo [2/6] Surum artiriliyor (VERSION.txt)...
 REM ============================================================
 set "OLD_VERSION="
 set "VERSION="
-for /f "usebackq tokens=1 delims=|" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%BUMP_PS1%"`) do (
+for /f "usebackq tokens=1,2 delims=|" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%BUMP_PS1%"`) do (
     set "OLD_VERSION=%%A"
-)
-for /f "usebackq tokens=2 delims=|" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%BUMP_PS1%"`) do (
-    set "VERSION=%%A"
+    set "VERSION=%%B"
 )
 if not defined VERSION (
     echo [HATA] Surum artirilamadi.
@@ -142,10 +140,7 @@ if not defined VERSION (
 echo  Onceki : !OLD_VERSION!
 echo  Yeni   : !VERSION!
 
-:: VERSION.txt'ye yeni surumu yaz
-echo %VERSION% > VERSION.txt
-
-REM Surum dosyasini dogrula (tek kaynak)
+REM Surum dosyasini dogrula (tek kaynak — bump-version.ps1 zaten yazdi)
 set "CHECK_VER="
 set "CHECK_CODE="
 for /f "usebackq tokens=1,2 delims=|" %%A in (`powershell -NoProfile -ExecutionPolicy Bypass -File "%READ_PS1%"`) do (

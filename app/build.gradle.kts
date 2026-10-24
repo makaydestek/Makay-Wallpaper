@@ -40,11 +40,13 @@ android {
 
     defaultConfig {
         applicationId = "com.makay.wallpaper"
-        minSdk = 21
+        minSdk = 26
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
-        // Wallpaper changer bağımlılıkları burada eklenebilir
+        buildConfigField("String", "UPDATE_GITHUB_OWNER", "\"makaydestek\"")
+        // Gercek repo: https://github.com/makaydestek/Makay-Wallpaper
+        buildConfigField("String", "UPDATE_GITHUB_REPO", "\"Makay-Wallpaper\"")
     }
 
     signingConfigs {
@@ -88,9 +90,7 @@ android {
     }
 
     buildFeatures {
-        // Wallpaper uygulaması için Compose kullanmayabiliriz,
-        // ancak yapı aynı kalmalı
-        compose = false
+        compose = true
         buildConfig = true
     }
 
@@ -121,42 +121,62 @@ android {
     }
 }
 
-// Teslimat yalnizca proje/APK. Ara kopyalar APK/ disinda birakilmaz.
-// Klasorde yalnizca: MakayWallpaper_vX.Y.Z.apk + ayni adli .sha256
+// Teslimat yalnizca proje/APK. APK/, .sha256, mapping disinda hicbir yerde
+// APK birakilmaz (Cleaner ile ayni kural). Surum: VERSION.txt -> MakayWallpaper_v1.0.1.apk
+val deliveryApkDir: java.io.File =
+    rootProject.layout.projectDirectory.dir("APK").asFile
+
+fun isDeliveryArtifactName(name: String): Boolean {
+    val n = name.lowercase()
+    return n.endsWith(".apk") || n.endsWith(".apk.sha256") || n.endsWith(".aab") ||
+        (n.endsWith("-mapping.txt") && n.startsWith("makaywallpaper_"))
+}
+
 fun deleteDeliveryArtifactsIn(dir: java.io.File) {
     if (!dir.exists()) return
     dir.walkTopDown().forEach { f ->
         if (!f.isFile) return@forEach
-        val n = f.name.lowercase()
-        if (n.endsWith(".apk") || n.endsWith(".apk.sha256") || n.endsWith(".aab")) {
-            f.delete()
-        }
+        if (isDeliveryArtifactName(f.name)) f.delete()
     }
 }
 
+/** APK/ disindaki tum proje agacindaki apk/aab/sha256 kopyalarini siler. */
 fun deleteStrayDeliveryApks(keepDir: java.io.File) {
     val root = rootProject.layout.projectDirectory.asFile
+    val keepPath = keepDir.canonicalFile.toPath()
+    root.walkTopDown().forEach { f ->
+        if (!f.isFile) return@forEach
+        if (!isDeliveryArtifactName(f.name)) return@forEach
+        val path = f.canonicalFile.toPath()
+        if (path.startsWith(keepPath)) return@forEach
+        f.delete()
+    }
+    // AGP ara ciktilari (build/outputs) her zaman temizlenir
     deleteDeliveryArtifactsIn(layout.buildDirectory.dir("outputs/apk").get().asFile)
     deleteDeliveryArtifactsIn(layout.buildDirectory.dir("outputs/bundle").get().asFile)
-    deleteDeliveryArtifactsIn(root.resolve("app/release"))
-    deleteDeliveryArtifactsIn(root.resolve("release"))
-    root.listFiles()?.forEach { f ->
-        if (!f.isFile) return@forEach
-        val n = f.name.lowercase()
-        if (n.endsWith(".apk") || n.endsWith(".apk.sha256") || n.endsWith(".aab")) {
-            f.delete()
-        }
-    }
-    check(keepDir.exists())
+    check(keepDir.exists()) { "APK teslim klasoru yok: ${keepDir.absolutePath}" }
+}
+
+fun writeSha256(apkFile: java.io.File, shaFile: java.io.File, displayName: String): String {
+    val ps = listOf(
+        "powershell", "-NoProfile", "-Command",
+        "\$h=(Get-FileHash -Algorithm SHA256 -Path '${apkFile.absolutePath.replace("'", "''")}').Hash.ToLower(); " +
+            "Set-Content -Path '${shaFile.absolutePath.replace("'", "''")}' -Value (\$h + '  $displayName') -Encoding ascii; " +
+            "Write-Output \$h"
+    )
+    val proc = ProcessBuilder(ps).redirectErrorStream(true).start()
+    val hex = proc.inputStream.bufferedReader().readText().trim()
+    check(proc.waitFor() == 0 && hex.length == 64) { "SHA-256 olusturulamadi: $hex" }
+    return hex
 }
 
 tasks.register("publishReleaseApk") {
     group = "distribution"
-    description = "Release APK + SHA-256 + R8 mapping'i yalnizca APK/ klasorune yazar; baska klasordeki kopyalari siler"
+    description = "Release APK + SHA-256 + mapping yalnizca APK/ klasorune; baska konumdaki APK'lari siler"
     doLast {
         val src = layout.buildDirectory.file("outputs/apk/release/app-release.apk").get().asFile
         check(src.exists()) { "APK bulunamadi: ${src.absolutePath}" }
-        val apkDir = rootProject.layout.projectDirectory.dir("APK").asFile
+        val apkDir = deliveryApkDir
         apkDir.mkdirs()
         val ver = rootProject.file("VERSION.txt").readText().trim()
         val named = apkDir.resolve("MakayWallpaper_v$ver.apk")
@@ -164,16 +184,13 @@ tasks.register("publishReleaseApk") {
         val staging = apkDir.resolve(".staging-app-release.apk")
 
         src.copyTo(staging, overwrite = true)
+        // Tek surum teslimati: APK/ icinde yalnizca bu release kalir
         apkDir.listFiles()?.forEach { f ->
             if (f.isFile && f.name != staging.name) f.delete()
         }
         staging.copyTo(named, overwrite = true)
         staging.delete()
 
-        // R8 obfuscation haritasi - release APK'nin stack trace'leri buradan
-        // cozulebilir. APK ile ayni klasorde (surumli adla) ve GitHub Release
-        // asset'i olarak yayinlanir. Eski surumun haritasi dosya adinda
-        // oldugundan yeni yayinda kendiliginden degisir.
         val mappingSrc = layout.buildDirectory.file("outputs/mapping/release/mapping.txt").get().asFile
         val mappingOut = apkDir.resolve("MakayWallpaper_v$ver-mapping.txt")
         if (mappingSrc.exists()) {
@@ -182,16 +199,40 @@ tasks.register("publishReleaseApk") {
             mappingOut.delete()
         }
 
-        val ps = listOf(
-            "powershell", "-NoProfile", "-Command",
-            "\$h=(Get-FileHash -Algorithm SHA256 -Path '${named.absolutePath.replace("'", "''")}').Hash.ToLower(); " +
-                "Set-Content -Path '${shaFile.absolutePath.replace("'", "''")}' -Value (\$h + '  MakayWallpaper_v$ver.apk') -Encoding ascii; " +
-                "Write-Output \$h"
-        )
-        val proc = ProcessBuilder(ps).redirectErrorStream(true).start()
-        val hex = proc.inputStream.bufferedReader().readText().trim()
-        check(proc.waitFor() == 0 && hex.length == 64) { "SHA-256 olusturulamadi: $hex" }
+        val hex = writeSha256(named, shaFile, "MakayWallpaper_v$ver.apk")
+        deleteStrayDeliveryApks(apkDir)
 
+        check(named.exists()) { "Teslim APK APK/ klasorunde yok: ${named.absolutePath}" }
+        println("Published: ${named.absolutePath}")
+        println("SHA-256  : ${shaFile.absolutePath}")
+        println("Version  : $ver (versionCode=$appVersionCode)")
+        println("Fingerprint: $hex")
+        println("Teslimat: yalnizca ${apkDir.absolutePath}")
+    }
+}
+
+tasks.register("publishDebugApk") {
+    group = "distribution"
+    description = "Debug APK'yi MakayWallpaper_vX.Y.Z.apk adıyla yalnızca APK/ klasorune yazar"
+    doLast {
+        val src = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile
+        check(src.exists()) { "Debug APK bulunamadi: ${src.absolutePath}" }
+        val apkDir = deliveryApkDir
+        apkDir.mkdirs()
+        val ver = rootProject.file("VERSION.txt").readText().trim()
+        // Surum adi release ile ayni: MakayWallpaper_v1.0.1.apk → 1.0.2 …
+        val named = apkDir.resolve("MakayWallpaper_v$ver.apk")
+        val shaFile = apkDir.resolve("MakayWallpaper_v$ver.apk.sha256")
+        val staging = apkDir.resolve(".staging-app-debug.apk")
+
+        src.copyTo(staging, overwrite = true)
+        apkDir.listFiles()?.forEach { f ->
+            if (f.isFile && f.name != staging.name) f.delete()
+        }
+        staging.copyTo(named, overwrite = true)
+        staging.delete()
+
+        val hex = writeSha256(named, shaFile, "MakayWallpaper_v$ver.apk")
         deleteStrayDeliveryApks(apkDir)
 
         check(named.exists()) { "Teslim APK APK/ klasorunde yok: ${named.absolutePath}" }
@@ -207,26 +248,36 @@ afterEvaluate {
     tasks.named("assembleRelease").configure {
         finalizedBy("publishReleaseApk")
     }
+    tasks.named("assembleDebug").configure {
+        finalizedBy("publishDebugApk")
+    }
 }
 
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("androidx.activity:activity-ktx:1.9.3")
+    implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.fragment:fragment-ktx:1.8.5")
-    // Wallpaper changer özellikleri için temel kütüphaneler
-    implementation("androidx.compose.ui:ui:1.2.0")
+    implementation(platform("androidx.compose:compose-bom:2024.12.01"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.runtime:runtime-compose:1.2.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-runtime:2.8.7")
+    implementation("androidx.compose.material:material-icons-core")
+    implementation("androidx.compose.animation:animation")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("com.google.code.gson:gson:2.10.1")
+
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
-    implementation("io.coil-kt:coil:2.7.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation("androidx.documentfile:documentfile:1.0.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

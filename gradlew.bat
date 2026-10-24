@@ -1,24 +1,24 @@
 @echo off
 :: MakayWallpaper Gradle Wrapper
-:: Run: gradlew.bat [task]
+:: Calistirma: gradlew.bat [gorev]
 
 setlocal
 
-:: Set Gradle user home
-set GRADLE_USER_HOME=%HOME%
+:: JDK yolunu tanımla
+set JAVA_HOME=C:\Program Files\Microsoft\jdk-21.0.12.101-hotspot
+set PATH=%JAVA_HOME%\bin;%PATH%
 
-:: Find the gradle wrapper jar relative to this script
-set WRAPPER_DIR=%~dp0\gradle\wrapper
-set WRAPPER_JAR=%WRAPPER_DIR%\gradle-wrapper.jar
+:: Gradle wrapper jar'in yolunu belirle
+set WRAPPER_JAR=gradle\wrapper\gradle-wrapper.jar
 
-:: Check if jar exists
+:: Kontrol: jar var mi?
 if not exist "%WRAPPER_JAR%" (
     echo [HATA] gradle-wrapper.jar bulunamadi: %WRAPPER_JAR%
-    echo [Cozum] Indy gradle wrapper jar dosyasini yerine koyun.
+    echo [Cozum] Indy gradle-wrapper.jar dosyasini proje klasorune koyun.
     goto end
 )
 
-:: Run Gradle
+:: Gradle'i calistir
 if "%~1"=="" (
     echo.
     echo [MakayWallpaper] Arguman yok - assembleDebug calistiriliyor...
@@ -29,3 +29,4 @@ if "%~1"=="" (
 )
 
 :end
+endlocal

@@ -1,30 +1,40 @@
-param(
-    [string]$OldVersion,
-    [string]$NewVersion
-)
+# MakayWallpaper surum artirici
+# Tek kaynak: VERSION.txt  (ornek 1.0.1 -> 1.0.2 -> 1.0.3 ...)
+# app/build.gradle.kts VERSION.txt okur; burada gradle duzenlenmez.
+# Cikti (stdout): OLD|NEW
+# APK adi: APK\MakayWallpaper_vX.Y.Z.apk
 
-# VERSION.txt içeriğini oku
-$content = Get-Content -Path "VERSION.txt" -Raw
-$content = $content.Trim()
+$ErrorActionPreference = "Stop"
 
-# Version parçalarını ayır
-$parts = $content.Split('.')
-if ($parts.Count -ne 3) {
-    Write-Error "VERSION.txt 3 parçadan oluşmalı (major.minor.patch)"
+$root = Split-Path -Parent $PSScriptRoot
+$versionFile = Join-Path $root "VERSION.txt"
+
+if (-not (Test-Path $versionFile)) {
+    Set-Content -Path $versionFile -Value "1.0.0" -Encoding ASCII -NoNewline
+}
+
+$old = (Get-Content -Path $versionFile -Raw).Trim()
+if ([string]::IsNullOrWhiteSpace($old)) { $old = "1.0.0" }
+
+if ($old -notmatch '^(\d+)\.(\d+)\.(\d+)$') {
+    Write-Error "Gecersiz surum formati: '$old' (beklenen: 1.0.43)"
     exit 1
 }
 
-# Current version'yi çıkar
-$oldMaj = $parts[0].Trim()
-$oldMin = $parts[1].Trim()
-$oldPat = $parts[2].Trim()
-$OldVersion = "$oldMaj.$oldMin.$oldPat"
+$major = [int]$Matches[1]
+$minor = [int]$Matches[2]
+$patch = [int]$Matches[3] + 1
 
-# Minor version artır (patch + 1)
-$newPat = [int]$oldPat + 1
-$newMaj = $oldMaj
-$newMin = $oldMin
-$NewVersion = "$newMaj.$newMin.$newPat"
+if ($patch -gt 99) {
+    $patch = 0
+    $minor++
+}
+if ($minor -gt 99) {
+    $minor = 0
+    $major++
+}
 
-# Output'u pipe ile batch'e yaz
-Write-Output "$OldVersion|$NewVersion"
+$new = "$major.$minor.$patch"
+Set-Content -Path $versionFile -Value $new -Encoding ASCII -NoNewline
+
+Write-Output "$old|$new"
