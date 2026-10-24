@@ -25,15 +25,19 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.makay.wallpaper.BuildConfig
 import com.makay.wallpaper.data.ThemeRepository
@@ -257,19 +261,28 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             )
             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val liveActive =
+                    var statusTick by remember { mutableStateOf(0) }
+                    val lifecycleOwner = LocalLifecycleOwner.current
+                    DisposableEffect(lifecycleOwner) {
+                        val observer = LifecycleEventObserver { _, event ->
+                            if (event == Lifecycle.Event.ON_RESUME) statusTick++
+                        }
+                        lifecycleOwner.lifecycle.addObserver(observer)
+                        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                    }
+                    val liveActive = remember(statusTick, gestures) {
                         com.makay.wallpaper.util.LiveWallpaperHelper.isOurLiveWallpaperActive(context)
-                    val a11yOn = com.makay.wallpaper.service.DoubleTapAccessibilityService.isEnabled(context)
+                    }
+                    val a11yOn = remember(statusTick) {
+                        com.makay.wallpaper.service.DoubleTapAccessibilityService.isEnabled(context)
+                    }
+                    val setupOk = liveActive && a11yOn && gestures.enabled
                     Text(
                         LanguageManager.t(
-                            "Wallpaper Changer gibi ana ekranda çift dokunuş için:\n" +
-                                "1) Canlı duvar kağıdını ayarlayın\n" +
-                                "2) Xiaomi’de «Çift dokunuşla kilitle» kapalı olsun\n" +
-                                "3) MIUI’de dokunuş gelmezse aşağıdaki erişilebilirliği açın",
-                            "For home double-tap like Wallpaper Changer:\n" +
-                                "1) Set live wallpaper\n" +
-                                "2) Disable MIUI “Double tap to lock”\n" +
-                                "3) If taps still fail, enable accessibility below",
+                            "Ana ekranda çift dokunuşla sonraki fotoğraf için " +
+                                "aşağıdaki adımları sırayla tamamlayın (Xiaomi / HyperOS):",
+                            "To change wallpaper with a home double-tap, complete these steps " +
+                                "(Xiaomi / HyperOS):",
                             context
                         ),
                         style = MaterialTheme.typography.bodySmall,
@@ -277,14 +290,31 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     )
                     Text(
                         LanguageManager.t(
-                            "Durum: canlı WP ${if (liveActive) "açık" else "kapalı"} · " +
-                                "erişilebilirlik ${if (a11yOn) "açık" else "kapalı"}",
-                            "Status: live WP ${if (liveActive) "on" else "off"} · " +
-                                "accessibility ${if (a11yOn) "on" else "off"}",
+                            "• Telefon: Ayarlar → Kilit ekranı → «Çift dokunun» kapalı olsun\n" +
+                                "• 1) Canlı duvar kağıdı → «Ana ekran» seçin\n" +
+                                "• 2) Jest griyse: Kısıtlanmış ayara izin verin\n" +
+                                "• 3) «Makay Wallpaper jestleri»ni açın\n" +
+                                "• 4) Gestures açık + Çift dokunuş = NEXT",
+                            "• Phone: Settings → Lock screen → turn Double tap off\n" +
+                                "• 1) Set live wallpaper → Home\n" +
+                                "• 2) If gestures are greyed: Allow restricted settings\n" +
+                                "• 3) Enable “Makay Wallpaper gestures”\n" +
+                                "• 4) Gestures on + Double tap = NEXT",
+                            context
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        LanguageManager.t(
+                            "Durum: ${com.makay.wallpaper.util.LiveWallpaperHelper.statusLabel(context)}" +
+                                if (setupOk) " · hazır" else " · eksik adım var",
+                            "Status: ${com.makay.wallpaper.util.LiveWallpaperHelper.statusLabel(context)}" +
+                                if (setupOk) " · ready" else " · steps missing",
                             context
                         ),
                         style = MaterialTheme.typography.labelMedium,
-                        color = if (liveActive || a11yOn) {
+                        color = if (setupOk) {
                             MaterialTheme.colorScheme.primary
                         } else {
                             MaterialTheme.colorScheme.error
@@ -293,6 +323,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     TvActionButton(
                         onClick = {
                             com.makay.wallpaper.util.LiveWallpaperHelper.openLiveWallpaperSetup(context)
+                            statusTick++
                         },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         idle = MaterialTheme.colorScheme.secondary
@@ -307,19 +338,69 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     }
                     TvActionButton(
                         onClick = {
+                            com.makay.wallpaper.util.LiveWallpaperHelper
+                                .openAppDetailsForRestrictedSettings(context)
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        idle = MaterialTheme.colorScheme.errorContainer,
+                        idleContent = MaterialTheme.colorScheme.onErrorContainer
+                    ) {
+                        Text(
+                            LanguageManager.t(
+                                "2) Kısıtlanmış ayara izin ver",
+                                "2) Allow restricted settings",
+                                context
+                            )
+                        )
+                    }
+                    Text(
+                        LanguageManager.t(
+                            "«Makay Wallpaper jestleri» gri / «Kısıtlanmış ayar tarafından " +
+                                "kontrol ediliyor» yazıyorsa: bu butona basın → sağ üst ⋮ → " +
+                                "«Kısıtlanmış ayarlara izin ver» → açın. Sonra 3. adıma geçin.",
+                            "If “Makay Wallpaper gestures” is greyed / “Controlled by a " +
+                                "restricted setting”: tap this → top-right ⋮ → Allow restricted " +
+                                "settings → On. Then continue with step 3.",
+                            context
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TvActionButton(
+                        onClick = {
                             com.makay.wallpaper.service.DoubleTapAccessibilityService
                                 .openAccessibilitySettings(context)
+                            statusTick++
                         },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         idle = MaterialTheme.colorScheme.tertiary
                     ) {
                         Text(
                             LanguageManager.t(
-                                "2) Jest erişilebilirliğini aç (MIUI)",
-                                "2) Enable gesture accessibility (MIUI)",
+                                "3) Jest erişilebilirliğini aç (MIUI)",
+                                "3) Enable gesture accessibility (MIUI)",
                                 context
                             )
                         )
+                    }
+                    Text(
+                        LanguageManager.t(
+                            "Erişilebilirlik → İndirilen uygulamalar → Makay Wallpaper jestleri → " +
+                                "özelliği açın. Durum «erişilebilirlik açık» olmalı.",
+                            "Accessibility → Downloaded apps → Makay Wallpaper gestures → turn on. " +
+                                "Status should show accessibility on.",
+                            context
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TvActionButton(
+                        onClick = { statusTick++ },
+                        modifier = Modifier.fillMaxWidth().height(40.dp),
+                        idle = MaterialTheme.colorScheme.surfaceVariant,
+                        idleContent = MaterialTheme.colorScheme.onSurfaceVariant
+                    ) {
+                        Text(LanguageManager.t("Durumu yenile", "Refresh status", context))
                     }
                     TriggerRow(
                         LanguageManager.t("Gestures açık", "Gestures enabled", context),
@@ -329,6 +410,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                         if (enabled && !liveActive) {
                             com.makay.wallpaper.util.LiveWallpaperHelper.openLiveWallpaperSetup(context)
                         }
+                        statusTick++
                     }
                     Text(LanguageManager.t("Çift dokunuş", "Double tap", context))
                     GestureChips(gestures.doubleTapAction) {

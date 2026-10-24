@@ -11,14 +11,18 @@ import com.makay.wallpaper.data.WallpaperSettingsRepository
 import com.makay.wallpaper.domain.model.GestureAction
 
 /**
- * MIUI / birçok launcher canlı WP'ye dokunuş iletmez.
- * Ana ekranda çift/üç dokunuşu erişilebilirlik ile yakalar (Wallpaper Changer tarzı).
+ * MIUI yedeği: boş alana çift dokunuş.
+ *
+ * ÖNEMLİ: TYPE_VIEW_CLICKED kullanılmaz — klasör/ikon her tıklamada
+ * TOUCH + CLICK birlikte gelince tek tık «çift dokunuş» sayılıp
+ * duvar kağıdı değişiyordu.
  */
 class DoubleTapAccessibilityService : AccessibilityService() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var tapCount = 0
     private var lastTapAt = 0L
+    private var suppressUntil = 0L
     private val reset = Runnable {
         val c = tapCount
         tapCount = 0
@@ -28,10 +32,8 @@ class DoubleTapAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         serviceInfo = serviceInfo?.apply {
+            // VIEW_CLICKED yok — ikon/klasör tıklaması jest olmasın
             eventTypes = AccessibilityEvent.TYPE_TOUCH_INTERACTION_START or
-                AccessibilityEvent.TYPE_TOUCH_INTERACTION_END or
-                AccessibilityEvent.TYPE_VIEW_CLICKED or
-                AccessibilityEvent.TYPE_VIEW_LONG_CLICKED or
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
             flags = flags or
@@ -47,28 +49,39 @@ class DoubleTapAccessibilityService : AccessibilityService() {
         val settings = WallpaperSettingsRepository.getInstance(applicationContext)
         if (!settings.gestures.value.enabled) return
 
-        val type = event.eventType
-        val isTouch = type == AccessibilityEvent.TYPE_TOUCH_INTERACTION_START ||
-            type == AccessibilityEvent.TYPE_VIEW_CLICKED
-        if (!isTouch) return
-
-        // Yalnızca ana ekran / launcher üzerinde say
         val pkg = event.packageName?.toString()
             ?: rootInActiveWindow?.packageName?.toString()
             ?: return
         if (!isLauncherPackage(pkg)) return
 
-        // İkon/klasör üzerine tıklamada genelde VIEW_CLICKED + kaynak sınıfı ViewGroup dışı olur;
-        // boş alana dokunuşta çoğu OEM TOUCH_INTERACTION gönderir.
         val now = System.currentTimeMillis()
-        if (now - lastTapAt > 520) tapCount = 0
-        lastTapAt = now
-        tapCount++
-        handler.removeCallbacks(reset)
-        handler.postDelayed(reset, 480)
+
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                // Klasör aç/kapa, uygulama geçişi
+                suppressUntil = now + SUPPRESS_AFTER_WINDOW_MS
+                tapCount = 0
+                handler.removeCallbacks(reset)
+            }
+            AccessibilityEvent.TYPE_TOUCH_INTERACTION_START -> {
+                if (now < suppressUntil) return
+                // Canlı WP dokunuş alabiliyorsa jesti o yapsın (daha az yanlış pozitif)
+                if (com.makay.wallpaper.util.LiveWallpaperHelper
+                        .isOurLiveWallpaperActive(applicationContext)
+                ) {
+                    return
+                }
+                if (now - lastTapAt > TAP_SESSION_MS) tapCount = 0
+                lastTapAt = now
+                tapCount++
+                handler.removeCallbacks(reset)
+                handler.postDelayed(reset, TAP_COMMIT_MS)
+            }
+        }
     }
 
     private fun handleTaps(count: Int) {
+        if (System.currentTimeMillis() < suppressUntil) return
         val gestures = WallpaperSettingsRepository.getInstance(applicationContext).gestures.value
         if (!gestures.enabled) return
         val action: GestureAction = when (count) {
@@ -77,7 +90,6 @@ class DoubleTapAccessibilityService : AccessibilityService() {
             else -> return
         }
         if (action == GestureAction.NONE) return
-        // Arka planda uygula — UI kilidi / yeniden açılma olmasın
         Thread({
             WallpaperController.performGesture(applicationContext, action)
         }, "GestureApply").start()
@@ -92,6 +104,10 @@ class DoubleTapAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        private const val TAP_SESSION_MS = 450L
+        private const val TAP_COMMIT_MS = 420L
+        private const val SUPPRESS_AFTER_WINDOW_MS = 800L
+
         @Volatile
         var instance: DoubleTapAccessibilityService? = null
             private set

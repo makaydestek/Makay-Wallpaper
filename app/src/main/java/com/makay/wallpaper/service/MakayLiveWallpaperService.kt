@@ -82,7 +82,7 @@ class MakayLiveWallpaperService : WallpaperService() {
             extras: android.os.Bundle?,
             resultRequested: Boolean
         ): android.os.Bundle? {
-            // Bazı launcher'lar dokunuşu onCommand ile iletir
+            // Bazı launcher'lar boş alan dokunuşunu onCommand ile iletir
             if (action != null && (
                     action.contains("tap", ignoreCase = true) ||
                         action.contains("click", ignoreCase = true)
@@ -90,12 +90,7 @@ class MakayLiveWallpaperService : WallpaperService() {
             ) {
                 val gestures = WallpaperSettingsRepository.getInstance(applicationContext).gestures.value
                 if (gestures.enabled) {
-                    val now = System.currentTimeMillis()
-                    if (now - lastTapAt > 550) tapCount = 0
-                    lastTapAt = now
-                    tapCount++
-                    handler.removeCallbacks(tapReset)
-                    handler.postDelayed(tapReset, 500)
+                    registerTap()
                 }
             }
             return super.onCommand(action, x, y, z, extras, resultRequested)
@@ -104,6 +99,7 @@ class MakayLiveWallpaperService : WallpaperService() {
         override fun onDestroy() {
             handler.removeCallbacks(tapReset)
             handler.removeCallbacks(fadeTick)
+            handler.removeCallbacks(confirmHiddenTrigger)
             runCatching { unregisterReceiver(changeReceiver) }
             bitmap?.recycle()
             previousBitmap?.recycle()
@@ -117,19 +113,40 @@ class MakayLiveWallpaperService : WallpaperService() {
             drawFrame()
         }
 
+        private var hiddenSince = 0L
+        private val confirmHiddenTrigger = Runnable {
+            if (lastVisible == false) {
+                val triggers = WallpaperSettingsRepository.getInstance(applicationContext).triggers.value
+                if (triggers.onHomeHidden && !WallpaperController.isGestureCooldownActive()) {
+                    WallpaperController.next(applicationContext)
+                }
+            }
+        }
+
         override fun onVisibilityChanged(visible: Boolean) {
             val prev = lastVisible
             lastVisible = visible
             if (visible) {
+                handler.removeCallbacks(confirmHiddenTrigger)
                 reloadAndDraw(animate = false)
-            }
-            if (prev != null && prev != visible) {
-                val triggers = WallpaperSettingsRepository.getInstance(applicationContext).triggers.value
-                val shouldChange = if (visible) triggers.onHomeShown else triggers.onHomeHidden
-                if (shouldChange) {
-                    WallpaperController.next(applicationContext)
-                    if (visible) reloadAndDraw(animate = true)
+                // Klasör overlay kısa gizleme — tetikleme (en az 600ms gizli kalmış olmalı)
+                if (prev == false &&
+                    hiddenSince > 0L &&
+                    System.currentTimeMillis() - hiddenSince >= 600L &&
+                    !WallpaperController.isGestureCooldownActive()
+                ) {
+                    val triggers = WallpaperSettingsRepository.getInstance(applicationContext).triggers.value
+                    if (triggers.onHomeShown) {
+                        WallpaperController.next(applicationContext)
+                        reloadAndDraw(animate = true)
+                    }
                 }
+                hiddenSince = 0L
+            } else if (prev != false) {
+                // Kısa titreme (klasör açılışı) onHomeHidden çalıştırmasın
+                hiddenSince = System.currentTimeMillis()
+                handler.removeCallbacks(confirmHiddenTrigger)
+                handler.postDelayed(confirmHiddenTrigger, 600L)
             }
         }
 
@@ -137,28 +154,30 @@ class MakayLiveWallpaperService : WallpaperService() {
             if (event == null) return
             val gestures = WallpaperSettingsRepository.getInstance(applicationContext).gestures.value
             if (!gestures.enabled) return
-            // DOWN + UP: bazı OEM yalnız birini iletir — ikisini de say
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP -> {
-                    val now = System.currentTimeMillis()
-                    // Aynı dokunuşun DOWN+UP çiftini tek say: 80ms içinde ikinciyi yok say
-                    if (now - lastTapAt < 80) return
-                    if (now - lastTapAt > 500) tapCount = 0
-                    lastTapAt = now
-                    tapCount++
-                    handler.removeCallbacks(tapReset)
-                    handler.postDelayed(tapReset, 450)
-                }
+            // Boş duvar kağıdı alanı: launcher ikon/klasöre dokunuş buraya gelmez
+            // Yalnız UP — tek fiziksel dokunuş = 1 sayım
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                registerTap()
             }
+        }
+
+        private fun registerTap() {
+            val now = System.currentTimeMillis()
+            if (now - lastTapAt < 90) return
+            if (now - lastTapAt > 520) tapCount = 0
+            lastTapAt = now
+            tapCount++
+            handler.removeCallbacks(tapReset)
+            handler.postDelayed(tapReset, 480)
         }
 
         private fun handleTaps(count: Int) {
             val gestures = WallpaperSettingsRepository.getInstance(applicationContext).gestures.value
             if (!gestures.enabled) return
-            // DOWN+UP her dokunuşu 2 kez artırabilir → 2 fiziksel dokunuş ≈ 2–4 sayım
-            val use: GestureAction = when {
-                count >= 5 -> gestures.tripleTapAction
-                count >= 2 -> gestures.doubleTapAction
+            // Net çift / üç; tek dokunuş (klasör/ikon) asla değiştirmez
+            val use: GestureAction = when (count) {
+                2 -> gestures.doubleTapAction
+                3 -> gestures.tripleTapAction
                 else -> return
             }
             if (use == GestureAction.NONE) return
@@ -179,7 +198,13 @@ class MakayLiveWallpaperService : WallpaperService() {
                 )
             } else null
 
-            if (useFade && bitmap != null && next != null) {
+            if (next == null) {
+                // Decode başarısızsa mevcut kareyi silme (siyah flaş olmasın)
+                drawFrame()
+                return
+            }
+
+            if (useFade && bitmap != null) {
                 previousBitmap?.recycle()
                 previousBitmap = bitmap
                 bitmap = next
@@ -189,8 +214,9 @@ class MakayLiveWallpaperService : WallpaperService() {
             } else {
                 previousBitmap?.recycle()
                 previousBitmap = null
-                bitmap?.recycle()
+                val old = bitmap
                 bitmap = next
+                old?.recycle()
                 fadeProgress = 1f
                 drawFrame()
             }
@@ -202,10 +228,18 @@ class MakayLiveWallpaperService : WallpaperService() {
             try {
                 canvas = holder.lockCanvas()
                 if (canvas == null) return
-                canvas.drawColor(Color.BLACK)
                 val dst = Rect(0, 0, canvas.width, canvas.height)
                 val prev = previousBitmap
                 val cur = bitmap
+                val hasContent =
+                    (prev != null && !prev.isRecycled && fadeProgress < 1f) ||
+                        (cur != null && !cur.isRecycled)
+                if (!hasContent) {
+                    canvas.drawColor(Color.BLACK)
+                } else {
+                    // Önceki kareyi koru; siyah ara kare flaşını önle
+                    canvas.drawColor(Color.BLACK)
+                }
                 if (prev != null && !prev.isRecycled && fadeProgress < 1f) {
                     paint.alpha = ((1f - fadeProgress) * 255).toInt().coerceIn(0, 255)
                     canvas.drawBitmap(prev, null, dst, paint)

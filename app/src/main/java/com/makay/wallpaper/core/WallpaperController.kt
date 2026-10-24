@@ -19,6 +19,11 @@ import kotlin.random.Random
  */
 object WallpaperController {
 
+    private val gestureLock = Any()
+    private val indexLock = Any()
+    @Volatile private var lastGestureAt = 0L
+    private const val GESTURE_COOLDOWN_MS = 700L
+
     fun isLandscapePaused(context: Context): Boolean {
         val behavior = WallpaperSettingsRepository.getInstance(context).behavior.value
         if (!behavior.pauseInLandscape) return false
@@ -55,6 +60,26 @@ object WallpaperController {
         val target = settings.target.value
         val lockSeparate = settings.lockAlbumId.value != null
         val live = LiveWallpaperHelper.isOurLiveWallpaperActive(context)
+        val gesturesOn = settings.gestures.value.enabled
+
+        // Jestler açıkken canlı WP varsa ASLA setBitmap (HOME) — jestleri öldürür
+        // Jestler açık + canlı yok: yine de statik basma; kullanıcı canlıyı yeni ayarladıysa ezilmesin
+        if (gesturesOn && live) {
+            settings.markChangedNow()
+            notifyChanged(context)
+            // Kilit ayrı albüm ise yalnız kilidi statik güncelle (ana canlı kalır)
+            if (lockSeparate || target == WallpaperTarget.LOCK) {
+                val lock = currentImage(context, forLock = true) ?: home
+                if (target != WallpaperTarget.HOME) {
+                    WallpaperApplier.setWallpaper(context, lock, WallpaperTarget.LOCK)
+                    settings.setLastLockUri(lock.uri)
+                } else if (lockSeparate) {
+                    WallpaperApplier.setWallpaper(context, lock, WallpaperTarget.LOCK)
+                    settings.setLastLockUri(lock.uri)
+                }
+            }
+            return true
+        }
 
         // Canlı WP aktifse setBitmap ÇALIŞTIRMA — jestleri ve canlı motoru öldürür
         if (live) {
@@ -236,6 +261,13 @@ object WallpaperController {
     fun prevAlbum(context: Context): Boolean = switchAlbum(context, -1)
 
     fun performGesture(context: Context, action: GestureAction): Boolean {
+        if (action == GestureAction.NONE) return false
+        // Canlı WP + erişilebilirlik aynı dokunuşu iki kez işleyebilir; tek jest uygula
+        synchronized(gestureLock) {
+            val now = System.currentTimeMillis()
+            if (now - lastGestureAt < GESTURE_COOLDOWN_MS) return false
+            lastGestureAt = now
+        }
         return when (action) {
             GestureAction.NEXT -> next(context, sequential = true)
             GestureAction.PREV -> prev(context)
@@ -243,6 +275,11 @@ object WallpaperController {
             GestureAction.PREV_ALBUM -> prevAlbum(context)
             GestureAction.NONE -> false
         }
+    }
+
+    /** Görünürlük tetikleyicileri jest ile çakışmasın */
+    fun isGestureCooldownActive(): Boolean {
+        return System.currentTimeMillis() - lastGestureAt < GESTURE_COOLDOWN_MS
     }
 
     fun nextChangeEtaMillis(context: Context): Long? {
@@ -268,20 +305,22 @@ object WallpaperController {
     }
 
     private fun advance(context: Context, delta: Int): Boolean {
-        val settings = WallpaperSettingsRepository.getInstance(context)
-        val albums = AlbumRepository.getInstance(context)
-        val albumId = settings.activeAlbumId.value ?: return false
-        val album = albums.getById(albumId) ?: return false
-        if (album.images.isEmpty()) return false
-        val size = album.images.size
-        val nextIndex = ((settings.activeIndex.value + delta) % size + size) % size
-        settings.setActiveIndex(nextIndex)
-        if (settings.lockAlbumId.value != null) {
-            val lockAlbum = albums.getById(settings.lockAlbumId.value!!)
-            if (lockAlbum != null && lockAlbum.images.isNotEmpty()) {
-                val ls = lockAlbum.images.size
-                val li = ((settings.lockIndex.value + delta) % ls + ls) % ls
-                settings.setLockIndex(li)
+        synchronized(indexLock) {
+            val settings = WallpaperSettingsRepository.getInstance(context)
+            val albums = AlbumRepository.getInstance(context)
+            val albumId = settings.activeAlbumId.value ?: return false
+            val album = albums.getById(albumId) ?: return false
+            if (album.images.isEmpty()) return false
+            val size = album.images.size
+            val nextIndex = ((settings.activeIndex.value + delta) % size + size) % size
+            settings.setActiveIndex(nextIndex)
+            if (settings.lockAlbumId.value != null) {
+                val lockAlbum = albums.getById(settings.lockAlbumId.value!!)
+                if (lockAlbum != null && lockAlbum.images.isNotEmpty()) {
+                    val ls = lockAlbum.images.size
+                    val li = ((settings.lockIndex.value + delta) % ls + ls) % ls
+                    settings.setLockIndex(li)
+                }
             }
         }
         return applyCurrent(context)
@@ -290,6 +329,8 @@ object WallpaperController {
     private fun switchAlbum(context: Context, delta: Int): Boolean {
         val albums = AlbumRepository.getInstance(context).getAll()
         if (albums.isEmpty()) return false
+        // Tek albümde «sonraki albüm» 1. fotoğrafa sıçramasın — sıradaki görsel
+        if (albums.size == 1) return advance(context, if (delta >= 0) 1 else -1)
         val settings = WallpaperSettingsRepository.getInstance(context)
         val currentId = settings.activeAlbumId.value
         val currentIdx = albums.indexOfFirst { it.id == currentId }.let { if (it < 0) 0 else it }
