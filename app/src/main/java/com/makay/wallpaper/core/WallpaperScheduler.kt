@@ -139,10 +139,8 @@ object WallpaperScheduler {
         scanFoldersNow(context)
     }
 
-    /** Manuel «Klasörü tara» — yeni eklenen görselleri albüme ekler */
+    /** Arka plan tarama — tek yol (çift tarama yarışı / takılma olmasın) */
     fun scanFoldersNow(context: Context) {
-        val once = OneTimeWorkRequestBuilder<FolderScanWorker>().build()
-        WorkManager.getInstance(context.applicationContext).enqueue(once)
         FolderWatchManager.scanNow(context.applicationContext)
     }
 

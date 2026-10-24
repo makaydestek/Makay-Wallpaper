@@ -38,20 +38,31 @@ class AlbumRepository private constructor(context: Context) {
     }
 
     fun update(album: Album) {
-        persist(_albums.value.map { if (it.id == album.id) album else it })
+        persist(listOfAlbumsReplacing(album))
     }
 
     fun delete(id: String) {
         persist(_albums.value.filterNot { it.id == id })
     }
 
+    @Synchronized
     fun addImages(albumId: String, uris: List<String>) {
         val album = getById(albumId) ?: return
-        val existing = album.images.map { it.uri }.toSet()
-        val added = uris.filter { it !in existing }.map { WallpaperImage(uri = it) }
+        val existing = album.images.map { it.uri }.toHashSet()
+        val added = ArrayList<WallpaperImage>()
+        for (uri in uris) {
+            if (existing.add(uri)) {
+                added.add(WallpaperImage(uri = uri))
+            }
+        }
         if (added.isEmpty()) return
-        update(album.copy(images = album.images + added))
+        // Tarama sırasında FileObserver yenileme fırtınası olmasın
+        persist(listOfAlbumsReplacing(album.copy(images = album.images + added)), refreshWatch = false)
+        runCatching { FolderWatchManager.refresh(appContext) }
     }
+
+    private fun listOfAlbumsReplacing(album: Album): List<Album> =
+        _albums.value.map { if (it.id == album.id) album else it }
 
     fun removeImage(albumId: String, uri: String) {
         val album = getById(albumId) ?: return
@@ -100,11 +111,13 @@ class AlbumRepository private constructor(context: Context) {
         }.getOrDefault(emptyList())
     }
 
-    private fun persist(list: List<Album>) {
-        prefs.edit().putString(KEY, gson.toJson(list)).apply()
+    private fun persist(list: List<Album>, refreshWatch: Boolean = true) {
+        // Büyük albümlerde apply() kaybı riskine karşı commit
+        prefs.edit().putString(KEY, gson.toJson(list)).commit()
         _albums.value = list
-        // İzlenen klasörler değişince FileObserver / tarama yenilenir
-        runCatching { FolderWatchManager.refresh(appContext) }
+        if (refreshWatch) {
+            runCatching { FolderWatchManager.refresh(appContext) }
+        }
     }
 
     companion object {

@@ -1,6 +1,8 @@
 package com.makay.wallpaper.ui
 
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -14,10 +16,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -60,6 +64,9 @@ fun QuickWallpaperSourceButtons(
     val repo = remember { AlbumRepository.getInstance(context) }
     val scope = rememberCoroutineScope()
     var busyMessage by remember { mutableStateOf<String?>(null) }
+    var busyFound by remember { mutableIntStateOf(0) }
+    var busyTotal by remember { mutableIntStateOf(0) }
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
     /** null = yeni albüm oluştur; dolu = mevcut albüme ekle */
     var targetAlbumId by remember { mutableStateOf<String?>(null) }
     var createNew by remember { mutableStateOf(true) }
@@ -139,45 +146,62 @@ fun QuickWallpaperSourceButtons(
             return@rememberLauncherForActivityResult
         }
         scope.launch {
+            busyFound = 0
+            busyTotal = 0
             busyMessage = LanguageManager.t(
                 "Klasör taranıyor…",
                 "Scanning folder…",
                 context
             )
-            val folderName = withContext(Dispatchers.IO) {
-                runCatching {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
+            try {
+                val folderName = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    }
+                    DocumentFile.fromTreeUri(context, uri)?.name?.takeIf { it.isNotBlank() }
+                        ?: stampName()
                 }
-                DocumentFile.fromTreeUri(context, uri)?.name?.takeIf { it.isNotBlank() }
-                    ?: stampName()
-            }
-            val scanned = withContext(Dispatchers.IO) {
-                FolderImageScanner.scan(context, uri.toString())
-            }
-            busyMessage = null
-            if (scanned.isEmpty()) {
-                toast("Klasörde görsel yok", "No images in folder")
+                val scanned = withContext(Dispatchers.IO) {
+                    FolderImageScanner.scan(context, uri.toString()) { found, total ->
+                        mainHandler.post {
+                            busyFound = found
+                            busyTotal = total
+                            busyMessage = LanguageManager.t(
+                                "Klasör taranıyor… $found/$total",
+                                "Scanning folder… $found/$total",
+                                context
+                            )
+                        }
+                    }
+                }
+                if (scanned.isEmpty()) {
+                    toast("Klasörde görsel yok", "No images in folder")
+                    targetAlbumId = null
+                    return@launch
+                }
+                val albumId = ensureAlbumId(folderName)
+                repo.setWatchFolder(albumId, true, uri.toString())
+                repo.addImages(albumId, scanned)
+                val ok = WallpaperController.setAlbum(context, albumId)
                 targetAlbumId = null
-                return@launch
+                if (ok) {
+                    toast(
+                        "${scanned.size} görsel uygulandı ($folderName)",
+                        "${scanned.size} images applied ($folderName)"
+                    )
+                    promptLiveWallpaperIfNeeded()
+                } else {
+                    toast("Albüm hazır; duvar kağıdı uygulanamadı", "Album ready; wallpaper failed")
+                }
+                onCompleted?.invoke(albumId)
+            } finally {
+                busyMessage = null
+                busyFound = 0
+                busyTotal = 0
             }
-            val albumId = ensureAlbumId(folderName)
-            repo.setWatchFolder(albumId, true, uri.toString())
-            repo.addImages(albumId, scanned)
-            val ok = WallpaperController.setAlbum(context, albumId)
-            targetAlbumId = null
-            if (ok) {
-                toast(
-                    "${scanned.size} görsel uygulandı ($folderName)",
-                    "${scanned.size} images applied ($folderName)"
-                )
-                promptLiveWallpaperIfNeeded()
-            } else {
-                toast("Albüm hazır; duvar kağıdı uygulanamadı", "Album ready; wallpaper failed")
-            }
-            onCompleted?.invoke(albumId)
         }
     }
 
@@ -257,12 +281,30 @@ fun QuickWallpaperSourceButtons(
         ) {
             Card(shape = RoundedCornerShape(16.dp)) {
                 Column(
-                    Modifier.padding(24.dp),
+                    Modifier.padding(24.dp).fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     CircularProgressIndicator()
-                    Text(busyMessage.orEmpty())
+                    Text(
+                        busyMessage.orEmpty(),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (busyTotal > 0) {
+                        Text(
+                            "$busyFound / $busyTotal",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        LinearProgressIndicator(
+                            progress = {
+                                (busyFound.toFloat() / busyTotal.toFloat().coerceAtLeast(1f))
+                                    .coerceIn(0f, 1f)
+                            },
+                            modifier = Modifier.fillMaxWidth().height(8.dp)
+                        )
+                    }
                 }
             }
         }
@@ -324,36 +366,50 @@ fun rememberAlbumPickLaunchers(
         pendingId = null
         if (id == null || uri == null) return@rememberLauncherForActivityResult
         scope.launch {
+            val mainHandler = Handler(Looper.getMainLooper())
             onBusy(LanguageManager.t("Klasör taranıyor…", "Scanning folder…", context))
-            val scanned = withContext(Dispatchers.IO) {
-                runCatching {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
+            try {
+                val scanned = withContext(Dispatchers.IO) {
+                    runCatching {
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    }
+                    FolderImageScanner.scan(context, uri.toString()) { found, total ->
+                        mainHandler.post {
+                            onBusy(
+                                LanguageManager.t(
+                                    "Klasör taranıyor… $found/$total",
+                                    "Scanning folder… $found/$total",
+                                    context
+                                )
+                            )
+                        }
+                    }
                 }
-                FolderImageScanner.scan(context, uri.toString())
-            }
-            onBusy(null)
-            repo.setWatchFolder(id, true, uri.toString())
-            if (scanned.isNotEmpty()) {
-                repo.addImages(id, scanned)
-                WallpaperController.setAlbum(context, id)
-                Toast.makeText(
-                    context,
-                    LanguageManager.t(
-                        "${scanned.size} görsel uygulandı",
-                        "${scanned.size} images applied",
-                        context
-                    ),
-                    Toast.LENGTH_SHORT
-                ).show()
-            } else {
-                Toast.makeText(
-                    context,
-                    LanguageManager.t("Klasörde görsel yok", "No images in folder", context),
-                    Toast.LENGTH_SHORT
-                ).show()
+                repo.setWatchFolder(id, true, uri.toString())
+                if (scanned.isNotEmpty()) {
+                    repo.addImages(id, scanned)
+                    WallpaperController.setAlbum(context, id)
+                    Toast.makeText(
+                        context,
+                        LanguageManager.t(
+                            "${scanned.size} görsel uygulandı",
+                            "${scanned.size} images applied",
+                            context
+                        ),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        context,
+                        LanguageManager.t("Klasörde görsel yok", "No images in folder", context),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } finally {
+                onBusy(null)
             }
         }
     }

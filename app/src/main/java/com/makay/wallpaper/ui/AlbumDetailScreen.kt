@@ -1,9 +1,12 @@
 package com.makay.wallpaper.ui
 
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +18,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -23,10 +27,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -34,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.makay.wallpaper.core.WallpaperController
-import com.makay.wallpaper.core.WallpaperScheduler
 import com.makay.wallpaper.data.AlbumRepository
 import com.makay.wallpaper.util.FolderImageScanner
 import com.makay.wallpaper.util.LanguageManager
@@ -55,6 +60,9 @@ fun AlbumDetailScreen(
     val album = albums.find { it.id == albumId }
     val scope = rememberCoroutineScope()
     var scanning by remember { mutableStateOf(false) }
+    var scanFound by remember { mutableIntStateOf(0) }
+    var scanTotal by remember { mutableIntStateOf(0) }
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
     Scaffold(
         topBar = {
@@ -118,37 +126,52 @@ fun AlbumDetailScreen(
                     onClick = {
                         if (scanning) return@TvActionButton
                         scanning = true
+                        scanFound = 0
+                        scanTotal = 0
                         scope.launch {
                             val before = album.images.size
-                            val added = withContext(Dispatchers.IO) {
-                                // Klasör izlemeyi aç
-                                repo.setWatchFolder(album.id, true, album.folderPath)
-                                val uris = FolderImageScanner.scan(context, album.folderPath!!)
-                                val existing = repo.getById(album.id)?.images?.map { it.uri }?.toSet()
-                                    .orEmpty()
-                                val neu = uris.filter { it !in existing }
-                                if (neu.isNotEmpty()) repo.addImages(album.id, neu)
-                                neu.size
+                            var added = 0
+                            var scannedCount = 0
+                            try {
+                                val result = withContext(Dispatchers.IO) {
+                                    repo.setWatchFolder(album.id, true, album.folderPath)
+                                    val uris = FolderImageScanner.scan(
+                                        context,
+                                        album.folderPath!!
+                                    ) { found, total ->
+                                        mainHandler.post {
+                                            scanFound = found
+                                            scanTotal = total
+                                        }
+                                    }
+                                    val existing = repo.getById(album.id)?.images
+                                        ?.map { it.uri }?.toHashSet().orEmpty()
+                                    val neu = uris.filter { it !in existing }
+                                    if (neu.isNotEmpty()) repo.addImages(album.id, neu)
+                                    uris.size to neu.size
+                                }
+                                scannedCount = result.first
+                                added = result.second
+                            } finally {
+                                scanning = false
                             }
-                            scanning = false
-                            WallpaperScheduler.scanFoldersNow(context)
                             val total = repo.getById(album.id)?.images?.size ?: before
                             Toast.makeText(
                                 context,
                                 if (added > 0) {
                                     LanguageManager.t(
-                                        "$added yeni görsel eklendi (toplam $total)",
-                                        "$added new images added ($total total)",
+                                        "$added yeni görsel eklendi (tarama $scannedCount, albüm $total)",
+                                        "$added new images (scanned $scannedCount, album $total)",
                                         context
                                     )
                                 } else {
                                     LanguageManager.t(
-                                        "Yeni görsel yok (toplam $total)",
-                                        "No new images ($total total)",
+                                        "Yeni yok — tarama $scannedCount, albümde $total",
+                                        "No new — scanned $scannedCount, album has $total",
                                         context
                                     )
                                 },
-                                Toast.LENGTH_SHORT
+                                Toast.LENGTH_LONG
                             ).show()
                         }
                     },
@@ -156,7 +179,8 @@ fun AlbumDetailScreen(
                         .fillMaxWidth()
                         .height(48.dp)
                         .padding(top = 8.dp),
-                    idle = MaterialTheme.colorScheme.secondary
+                    idle = MaterialTheme.colorScheme.secondary,
+                    enabled = !scanning
                 ) {
                     Text(
                         if (scanning) {
@@ -167,16 +191,66 @@ fun AlbumDetailScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
-                Text(
-                    LanguageManager.t(
-                        "Yeni eklenen fotoğraflar tarama ile listeye eklenir (otomatik ~15 dk).",
-                        "New photos are added on scan (auto about every 15 min).",
-                        context
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
-                )
+
+                if (scanning) {
+                    val total = scanTotal.coerceAtLeast(scanFound).coerceAtLeast(1)
+                    val fraction = (scanFound.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                LanguageManager.t(
+                                    "Klasör taranıyor",
+                                    "Scanning folder",
+                                    context
+                                ),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "$scanFound / $scanTotal",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        LinearProgressIndicator(
+                            progress = { fraction },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp),
+                        )
+                        Text(
+                            LanguageManager.t(
+                                "Büyük klasörlerde birkaç dakika sürebilir; lütfen bekleyin.",
+                                "Large folders may take a few minutes; please wait.",
+                                context
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Text(
+                        LanguageManager.t(
+                            "Albümde ${album.images.size} görsel. Yeni fotoğraflar için «Klasörü tara» " +
+                                "veya otomatik tarama (~15 dk).",
+                            "${album.images.size} images in album. Use Scan folder or auto scan (~15 min).",
+                            context
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                    )
+                }
             }
 
             TvFocusRow(

@@ -14,6 +14,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -191,6 +192,9 @@ fun AlbumsScreen(
     }
 
     if (busyMessage != null) {
+        val progressMatch = Regex("""(\d+)\s*/\s*(\d+)""").find(busyMessage.orEmpty())
+        val found = progressMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+        val total = progressMatch?.groupValues?.getOrNull(2)?.toIntOrNull() ?: 0
         Dialog(
             onDismissRequest = {},
             properties = DialogProperties(
@@ -200,12 +204,27 @@ fun AlbumsScreen(
         ) {
             Card(shape = RoundedCornerShape(16.dp)) {
                 Column(
-                    Modifier.padding(24.dp),
+                    Modifier.padding(24.dp).fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     CircularProgressIndicator()
-                    Text(busyMessage.orEmpty())
+                    Text(busyMessage.orEmpty(), fontWeight = FontWeight.SemiBold)
+                    if (total > 0) {
+                        Text(
+                            "$found / $total",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        LinearProgressIndicator(
+                            progress = {
+                                (found.toFloat() / total.toFloat().coerceAtLeast(1f))
+                                    .coerceIn(0f, 1f)
+                            },
+                            modifier = Modifier.fillMaxWidth().height(8.dp)
+                        )
+                    }
                 }
             }
         }
