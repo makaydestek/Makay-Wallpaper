@@ -140,11 +140,9 @@ fun AlbumDetailScreen(
                         scanFound = 0
                         scanTotal = 0
                         scope.launch {
-                            val before = album.images.size
-                            var added = 0
-                            var scannedCount = 0
+                            var sync = AlbumRepository.FolderSyncResult.EMPTY
                             try {
-                                val result = withContext(Dispatchers.IO) {
+                                sync = withContext(Dispatchers.IO) {
                                     repo.setWatchFolder(album.id, true, album.folderPath)
                                     val uris = FolderImageScanner.scan(
                                         context,
@@ -155,35 +153,38 @@ fun AlbumDetailScreen(
                                             scanTotal = total
                                         }
                                     }
-                                    val existing = repo.getById(album.id)?.images
-                                        ?.map { it.uri }?.toHashSet().orEmpty()
-                                    val neu = uris.filter { it !in existing }
-                                    if (neu.isNotEmpty()) repo.addImages(album.id, neu)
-                                    uris.size to neu.size
+                                    repo.syncFolderImages(album.id, uris)
                                 }
-                                scannedCount = result.first
-                                added = result.second
                             } finally {
                                 scanning = false
                             }
-                            val total = repo.getById(album.id)?.images?.size ?: before
-                            Toast.makeText(
-                                context,
-                                if (added > 0) {
+                            val msg = when {
+                                sync.added > 0 && sync.removed > 0 ->
                                     LanguageManager.t(
-                                        "$added yeni görsel eklendi (tarama $scannedCount, albüm $total)",
-                                        "$added new images (scanned $scannedCount, album $total)",
+                                        "${sync.added} eklendi, ${sync.removed} silindi — albüm ${sync.total}",
+                                        "${sync.added} added, ${sync.removed} removed — album ${sync.total}",
                                         context
                                     )
-                                } else {
+                                sync.added > 0 ->
                                     LanguageManager.t(
-                                        "Yeni yok — tarama $scannedCount, albümde $total",
-                                        "No new — scanned $scannedCount, album has $total",
+                                        "${sync.added} yeni görsel eklendi (tarama ${sync.scanned}, albüm ${sync.total})",
+                                        "${sync.added} new images (scanned ${sync.scanned}, album ${sync.total})",
                                         context
                                     )
-                                },
-                                Toast.LENGTH_LONG
-                            ).show()
+                                sync.removed > 0 ->
+                                    LanguageManager.t(
+                                        "${sync.removed} eksik görsel temizlendi — albüm ${sync.total}",
+                                        "${sync.removed} missing images cleaned — album ${sync.total}",
+                                        context
+                                    )
+                                else ->
+                                    LanguageManager.t(
+                                        "Güncel — tarama ${sync.scanned}, albümde ${sync.total}",
+                                        "Up to date — scanned ${sync.scanned}, album has ${sync.total}",
+                                        context
+                                    )
+                            }
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                         }
                     },
                     modifier = Modifier
@@ -252,9 +253,10 @@ fun AlbumDetailScreen(
                 } else {
                     Text(
                         LanguageManager.t(
-                            "Albümde ${album.images.size} görsel. Yeni fotoğraflar için «Klasörü tara» " +
-                                "veya otomatik tarama (~15 dk).",
-                            "${album.images.size} images in album. Use Scan folder or auto scan (~15 min).",
+                            "Albümde ${album.images.size} görsel. «Klasörü tara» eklenen/silinen dosyaları " +
+                                "senkronize eder (otomatik ~15 dk).",
+                            "${album.images.size} images in album. Scan folder syncs added/removed files " +
+                                "(auto ~15 min).",
                             context
                         ),
                         style = MaterialTheme.typography.bodySmall,
@@ -274,8 +276,8 @@ fun AlbumDetailScreen(
                     Text(LanguageManager.t("Klasörü izle", "Watch folder", context))
                     Text(
                         LanguageManager.t(
-                            "Açıkken arka planda yeni dosyalar izlenir",
-                            "When on, new files are watched in background",
+                            "Açıkken arka planda eklenen/silinen dosyalar senkronize edilir",
+                            "When on, added/removed files sync in background",
                             context
                         ),
                         style = MaterialTheme.typography.bodySmall,

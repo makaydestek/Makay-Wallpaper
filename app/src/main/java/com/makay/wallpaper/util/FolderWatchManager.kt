@@ -165,10 +165,12 @@ object FolderWatchManager {
         albums.getAll()
             .filter { it.watchFolder && !it.folderPath.isNullOrBlank() }
             .forEach { album ->
-                runCatching { albums.pruneMissingLocalFiles(album.id) }
                 val uris = FolderImageScanner.scan(context, album.folderPath!!)
+                // Boş sonuç tarama hatası olabilir — albümü silme
                 if (uris.isNotEmpty()) {
-                    albums.addImages(album.id, uris)
+                    albums.syncFolderImages(album.id, uris)
+                } else {
+                    runCatching { albums.pruneMissingLocalFiles(album.id) }
                 }
             }
     }

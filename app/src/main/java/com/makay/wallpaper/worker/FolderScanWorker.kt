@@ -20,8 +20,9 @@ class FolderScanWorker(
                 .filter { it.watchFolder && !it.folderPath.isNullOrBlank() }
                 .forEach { album ->
                     val uris = FolderImageScanner.scan(applicationContext, album.folderPath!!)
+                    // Boş sonuç tarama hatası olabilir — albümü silme
                     if (uris.isNotEmpty()) {
-                        albums.addImages(album.id, uris)
+                        albums.syncFolderImages(album.id, uris)
                     }
                 }
         }
