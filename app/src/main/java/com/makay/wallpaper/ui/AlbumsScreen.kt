@@ -54,6 +54,8 @@ fun AlbumsScreen(
     val activeId by settings.activeAlbumId.collectAsState()
     var showCreate by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
+    var renameAlbumId by remember { mutableStateOf<String?>(null) }
+    var renameValue by remember { mutableStateOf("") }
     /** Oluşturulan albüme hemen kaynak seçtir */
     var pickSourceForId by remember { mutableStateOf<String?>(null) }
     var busyMessage by remember { mutableStateOf<String?>(null) }
@@ -147,6 +149,12 @@ fun AlbumsScreen(
                                 Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                TextButton(onClick = {
+                                    renameAlbumId = album.id
+                                    renameValue = album.name
+                                }) {
+                                    Text(LanguageManager.t("Ad", "Rename", context))
+                                }
                                 TextButton(onClick = { launchImages(album.id) }) {
                                     Text(LanguageManager.t("Görsel", "Images", context))
                                 }
@@ -298,6 +306,36 @@ fun AlbumsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showCreate = false }) {
+                    Text(LanguageManager.t("İptal", "Cancel", context))
+                }
+            }
+        )
+    }
+
+    renameAlbumId?.let { albumId ->
+        AlertDialog(
+            onDismissRequest = { renameAlbumId = null },
+            title = {
+                Text(LanguageManager.t("Albümü yeniden adlandır", "Rename album", context))
+            },
+            text = {
+                OutlinedTextField(
+                    value = renameValue,
+                    onValueChange = { renameValue = it },
+                    singleLine = true,
+                    label = { Text(LanguageManager.t("Ad", "Name", context)) }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    repo.rename(albumId, renameValue)
+                    renameAlbumId = null
+                }) {
+                    Text(LanguageManager.t("Kaydet", "Save", context))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameAlbumId = null }) {
                     Text(LanguageManager.t("İptal", "Cancel", context))
                 }
             }

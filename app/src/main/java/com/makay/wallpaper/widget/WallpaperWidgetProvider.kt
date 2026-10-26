@@ -25,17 +25,21 @@ class WallpaperWidgetProvider : AppWidgetProvider() {
             ACTION_NEXT -> {
                 WallpaperController.next(context.applicationContext)
                 refreshAll(context)
+                com.makay.wallpaper.util.WallpaperControlNotification.refreshIfEnabled(context)
             }
             ACTION_PREV -> {
                 WallpaperController.prev(context.applicationContext)
                 refreshAll(context)
+                com.makay.wallpaper.util.WallpaperControlNotification.refreshIfEnabled(context)
             }
             ACTION_NEXT_ALBUM -> {
                 WallpaperController.nextAlbum(context.applicationContext)
                 refreshAll(context)
+                com.makay.wallpaper.util.WallpaperControlNotification.refreshIfEnabled(context)
             }
             ACTION_REFRESH, WallpaperController.ACTION_WALLPAPER_CHANGED -> {
                 refreshAll(context)
+                com.makay.wallpaper.util.WallpaperControlNotification.refreshIfEnabled(context)
             }
         }
     }
@@ -55,8 +59,7 @@ class WallpaperWidgetProvider : AppWidgetProvider() {
             }
             if (eta != null) {
                 if (isNotEmpty()) append(" · ")
-                val sec = (eta / 1000).toInt()
-                append("%02d:%02d".format(sec / 60, sec % 60))
+                append(com.makay.wallpaper.util.WallpaperControlNotification.formatEta(eta))
             }
             if (WallpaperController.isLandscapePaused(context)) {
                 if (isNotEmpty()) append(" · ")

@@ -149,7 +149,14 @@ class DoubleTapAccessibilityService : AccessibilityService() {
                 p.contains("oppo.launcher") ||
                 p.contains("coloros") ||
                 p.contains("samsung.android.app.launcher") ||
-                p.contains("sec.android.app.launcher")
+                p.contains("sec.android.app.launcher") ||
+                p.contains("huawei.android.launcher") ||
+                p.contains("hihonor.android.launcher") ||
+                p.contains("realme.launcher") ||
+                p.contains("transsion") ||
+                p.contains("nothing.launcher") ||
+                p.contains("pixel.launcher") ||
+                p == "com.google.android.apps.nexuslauncher"
         }
     }
 }

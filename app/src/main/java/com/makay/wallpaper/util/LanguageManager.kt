@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Dil tercihi. Tam çeviri sonraki sürümde; kritik metinler [t] ile seçilir.
+ * Dil tercihi (TR / EN). UI metinleri [t] ile çift dilde verilir.
  */
 object LanguageManager {
     private const val PREFS = "language_prefs"

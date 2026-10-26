@@ -26,6 +26,9 @@ class MakayWallpaperApplication : Application() {
         WallpaperScheduler.enqueueFolderScan(this)
         WallpaperScheduler.scheduleTimer(this)
         WallpaperScheduler.scheduleAllAlarms(this)
+        runCatching {
+            com.makay.wallpaper.util.WallpaperControlNotification.refreshIfEnabled(this)
+        }
     }
 
     private fun registerScreenReceiver() {

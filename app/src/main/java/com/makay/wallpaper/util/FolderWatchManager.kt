@@ -165,6 +165,7 @@ object FolderWatchManager {
         albums.getAll()
             .filter { it.watchFolder && !it.folderPath.isNullOrBlank() }
             .forEach { album ->
+                runCatching { albums.pruneMissingLocalFiles(album.id) }
                 val uris = FolderImageScanner.scan(context, album.folderPath!!)
                 if (uris.isNotEmpty()) {
                     albums.addImages(album.id, uris)

@@ -67,7 +67,8 @@ object WallpaperApplier {
     }
 
     /**
-     * Sistem duvar kağıdı için her zaman ekranı dolduran bitmap üretir (siyah şerit yok).
+     * Seçilen [FitMode] ile hedef çözünürlüğe oturtulmuş bitmap üretir.
+     * FILL kenarları kırpar; FIT letterbox kullanır; STRETCH en-boy oranını bozabilir.
      */
     fun prepareForDisplay(
         context: Context,
@@ -75,11 +76,16 @@ object WallpaperApplier {
         crop: RectF,
         fit: DisplayFitSettings = WallpaperSettingsRepository.getInstance(context).displayFit.value
     ): Bitmap? {
-        // Ana ekranda siyah boşluk olmasın: sistem WP için FILL zorla
-        val effective = fit.copy(fitMode = FitMode.FILL, autoRotateDimsForLandscape = false)
+        val effective = fit.copy(autoRotateDimsForLandscape = false)
         val cropped = decodeCropped(context, uri, crop, effective) ?: return null
         val (tw, th) = resolveTargetSize(context, effective, cropped.width, cropped.height)
-        val scaled = scaleToExact(cropped, tw, th, FitMode.FILL, Color.BLACK)
+        val scaled = scaleToExact(
+            cropped,
+            tw,
+            th,
+            effective.fitMode,
+            effective.letterboxColor
+        )
         if (scaled !== cropped && !cropped.isRecycled) cropped.recycle()
         val effects = WallpaperSettingsRepository.getInstance(context).effects.value
         val withFx = ImageEffectsProcessor.apply(scaled, effects)

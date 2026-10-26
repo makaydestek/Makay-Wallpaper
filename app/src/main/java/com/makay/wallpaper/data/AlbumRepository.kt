@@ -41,8 +41,36 @@ class AlbumRepository private constructor(context: Context) {
         persist(listOfAlbumsReplacing(album))
     }
 
+    fun rename(id: String, name: String) {
+        val album = getById(id) ?: return
+        val trimmed = name.trim()
+        if (trimmed.isEmpty() || trimmed == album.name) return
+        update(album.copy(name = trimmed))
+    }
+
     fun delete(id: String) {
         persist(_albums.value.filterNot { it.id == id })
+    }
+
+    /**
+     * Yerel (file://) görselleri silinmişse albümden çıkarır.
+     * content:// URI'ler korunur (izin / MediaStore hâlâ geçerli olabilir).
+     */
+    @Synchronized
+    fun pruneMissingLocalFiles(albumId: String) {
+        val album = getById(albumId) ?: return
+        val kept = album.images.filter { image ->
+            val uri = android.net.Uri.parse(image.uri)
+            when {
+                uri.scheme.equals("file", ignoreCase = true) -> {
+                    val path = uri.path
+                    !path.isNullOrBlank() && java.io.File(path).isFile
+                }
+                else -> true
+            }
+        }
+        if (kept.size == album.images.size) return
+        persist(listOfAlbumsReplacing(album.copy(images = kept)), refreshWatch = false)
     }
 
     @Synchronized

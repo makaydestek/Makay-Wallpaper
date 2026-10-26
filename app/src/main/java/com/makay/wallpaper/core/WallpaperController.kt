@@ -350,6 +350,9 @@ object WallpaperController {
                 Intent(ACTION_WALLPAPER_CHANGED).setPackage(context.packageName)
             )
         }
+        runCatching {
+            com.makay.wallpaper.util.WallpaperControlNotification.refreshIfEnabled(context)
+        }
     }
 
     const val ACTION_WALLPAPER_CHANGED = "com.makay.wallpaper.WALLPAPER_CHANGED"

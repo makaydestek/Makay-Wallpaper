@@ -115,6 +115,72 @@ fun SchedulesScreen(onNavigateBack: () -> Unit) {
                 Text(LanguageManager.t("Program ekle", "Add schedule", context))
             }
 
+            val todayTimeline = remember(schedules) {
+                val cal = Calendar.getInstance()
+                val dow = cal.get(Calendar.DAY_OF_WEEK)
+                val doy = cal.get(Calendar.DAY_OF_YEAR)
+                val nowMin = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+                schedules
+                    .filter { it.enabled }
+                    .filter { s ->
+                        (s.daysOfWeek.isEmpty() || dow in s.daysOfWeek) &&
+                            (s.dayOfYear == 0 || s.dayOfYear == doy)
+                    }
+                    .sortedWith(compareBy({ it.hour }, { it.minute }))
+                    .map { s ->
+                        val mins = s.hour * 60 + s.minute
+                        s to (mins >= nowMin)
+                    }
+            }
+            if (todayTimeline.isNotEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp, bottom = 4.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            LanguageManager.t("Bugünkü zaman çizelgesi", "Today’s timeline", context),
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        todayTimeline.forEach { (schedule, upcoming) ->
+                            val albumName = albumList
+                                .find { it.id == schedule.targetAlbumId }?.name
+                            Text(
+                                buildString {
+                                    append("%02d:%02d".format(schedule.hour, schedule.minute))
+                                    append(" · ")
+                                    append(
+                                        if (schedule.type == ScheduleType.ALBUM) {
+                                            albumName
+                                                ?: LanguageManager.t("Albüm", "Album", context)
+                                        } else {
+                                            LanguageManager.t(
+                                                "Duvar kağıdı",
+                                                "Wallpaper",
+                                                context
+                                            )
+                                        }
+                                    )
+                                    if (upcoming) append("  ←")
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (upcoming) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                fontWeight = if (upcoming) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+            }
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()

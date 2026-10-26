@@ -9,5 +9,9 @@
     <string name="crop">Crop</string>
     <string name="widget_default_text">Makay Wallpaper</string>
     <string name="widget_next">Next</string>
+    <string name="widget_prev">Previous</string>
+    <string name="widget_next_album">Next album</string>
     <string name="live_wallpaper_description">Makay Wallpaper live wallpaper</string>
+    <string name="gesture_accessibility_description">Used to change wallpaper with double / triple tap on the home screen. Only detects gestures; does not read passwords or personal data.</string>
+    <string name="gesture_accessibility_label">Makay Wallpaper gestures</string>
 </resources>

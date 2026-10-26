@@ -16,13 +16,16 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -62,6 +65,8 @@ fun AlbumDetailScreen(
     var scanning by remember { mutableStateOf(false) }
     var scanFound by remember { mutableIntStateOf(0) }
     var scanTotal by remember { mutableIntStateOf(0) }
+    var showRename by remember { mutableStateOf(false) }
+    var renameValue by remember { mutableStateOf("") }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
     Scaffold(
@@ -79,6 +84,12 @@ fun AlbumDetailScreen(
                     }
                 },
                 actions = {
+                    TvIconButton(onClick = {
+                        renameValue = album?.name.orEmpty()
+                        showRename = true
+                    }) {
+                        Text(LanguageManager.t("Ad", "Rename", context))
+                    }
                     TvIconButton(onClick = {
                         repo.delete(albumId)
                         onNavigateBack()
@@ -302,5 +313,35 @@ fun AlbumDetailScreen(
                 }
             }
         }
+    }
+
+    if (showRename) {
+        AlertDialog(
+            onDismissRequest = { showRename = false },
+            title = {
+                Text(LanguageManager.t("Albümü yeniden adlandır", "Rename album", context))
+            },
+            text = {
+                OutlinedTextField(
+                    value = renameValue,
+                    onValueChange = { renameValue = it },
+                    singleLine = true,
+                    label = { Text(LanguageManager.t("Ad", "Name", context)) }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    repo.rename(albumId, renameValue)
+                    showRename = false
+                }) {
+                    Text(LanguageManager.t("Kaydet", "Save", context))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRename = false }) {
+                    Text(LanguageManager.t("İptal", "Cancel", context))
+                }
+            }
+        )
     }
 }

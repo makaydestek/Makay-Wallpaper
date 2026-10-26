@@ -505,6 +505,9 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     }
 
                     HorizontalDivider()
+                    FitPreviewCard()
+
+                    HorizontalDivider()
                     Text(
                         LanguageManager.t("Hedef çözünürlük", "Target resolution", context),
                         fontWeight = FontWeight.SemiBold
@@ -648,6 +651,138 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             }
 
             HomeLockAlbumSection()
+
+            Text(
+                LanguageManager.t("Pil ve arka plan", "Battery & background", context),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                Column(
+                    Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    var batteryTick by remember { mutableStateOf(0) }
+                    val batteryLifecycle = LocalLifecycleOwner.current
+                    DisposableEffect(batteryLifecycle) {
+                        val observer = LifecycleEventObserver { _, event ->
+                            if (event == Lifecycle.Event.ON_RESUME) batteryTick++
+                        }
+                        batteryLifecycle.lifecycle.addObserver(observer)
+                        onDispose { batteryLifecycle.lifecycle.removeObserver(observer) }
+                    }
+                    val batteryOk = remember(batteryTick) {
+                        com.makay.wallpaper.util.BatteryOptimizationHelper
+                            .isIgnoringBatteryOptimizations(context)
+                    }
+                    Text(
+                        LanguageManager.t(
+                            "Zamanlayıcı ve klasör izleme için pil kısıtlarını gevşetin. " +
+                                "Xiaomi / Huawei / Oppo’da «otomatik başlat» da gerekir.",
+                            "Relax battery limits for the timer and folder watch. " +
+                                "On Xiaomi / Huawei / Oppo also allow autostart.",
+                            context
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        if (batteryOk) {
+                            LanguageManager.t(
+                                "Durum: pil optimizasyonu kapalı (iyi)",
+                                "Status: battery optimization off (good)",
+                                context
+                            )
+                        } else {
+                            LanguageManager.t(
+                                "Durum: pil optimizasyonu açık — zamanlayıcı gecikebilir",
+                                "Status: battery optimization on — timer may delay",
+                                context
+                            )
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (batteryOk) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        }
+                    )
+                    TvActionButton(
+                        onClick = {
+                            com.makay.wallpaper.util.BatteryOptimizationHelper
+                                .requestIgnoreBatteryOptimizations(context)
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        idle = MaterialTheme.colorScheme.primary
+                    ) {
+                        Text(
+                            LanguageManager.t(
+                                "Pil kısıtını kaldır",
+                                "Ignore battery optimizations",
+                                context
+                            )
+                        )
+                    }
+                    TvActionButton(
+                        onClick = {
+                            com.makay.wallpaper.util.BatteryOptimizationHelper
+                                .openOemAutostartSettings(context)
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        idle = MaterialTheme.colorScheme.secondary
+                    ) {
+                        Text(
+                            LanguageManager.t(
+                                "Otomatik başlat / OEM ayarı",
+                                "Autostart / OEM settings",
+                                context
+                            )
+                        )
+                    }
+                }
+            }
+
+            val makayApps = remember {
+                com.makay.wallpaper.util.MakayEcosystemHelper.installedApps(context)
+            }
+            if (makayApps.isNotEmpty()) {
+                Text(
+                    LanguageManager.t("Makay uygulamaları", "Makay apps", context),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                    Column(
+                        Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            LanguageManager.t(
+                                "Bu cihazda yüklü Makay uygulamaları:",
+                                "Makay apps installed on this device:",
+                                context
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        makayApps.forEach { app ->
+                            TvActionButton(
+                                onClick = {
+                                    com.makay.wallpaper.util.MakayEcosystemHelper
+                                        .openApp(context, app.packageName)
+                                },
+                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                idle = MaterialTheme.colorScheme.surfaceVariant,
+                                idleContent = MaterialTheme.colorScheme.onSurfaceVariant
+                            ) {
+                                Text(
+                                    LanguageManager.t(app.labelTr, app.labelEn, context)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             AdvancedFeaturesSection()
 

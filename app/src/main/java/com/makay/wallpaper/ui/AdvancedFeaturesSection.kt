@@ -46,12 +46,19 @@ fun AdvancedFeaturesSection() {
     val albumList by albumsRepo.albums.collectAsState()
     var backupMsg by remember { mutableStateOf<String?>(null) }
 
+    var controlNotifOn by remember {
+        mutableStateOf(com.makay.wallpaper.util.WallpaperControlNotification.isEnabled(context))
+    }
     val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/json")
+        ActivityResultContracts.CreateDocument(BackupRestore.ZIP_MIME)
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         backupMsg = if (BackupRestore.exportToUri(context, uri)) {
-            LanguageManager.t("Yedek kaydedildi", "Backup saved", context)
+            LanguageManager.t(
+                "Yedek kaydedildi (görseller dahil)",
+                "Backup saved (includes images)",
+                context
+            )
         } else {
             LanguageManager.t("Yedek başarısız", "Backup failed", context)
         }
@@ -210,6 +217,42 @@ fun AdvancedFeaturesSection() {
         }
 
         Text(
+            LanguageManager.t("Hızlı kontroller", "Quick controls", context),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    LanguageManager.t(
+                        "Bildirim çubuğundan sonraki / önceki / albüm değiştir.",
+                        "Change next / previous / album from the notification shade.",
+                        context
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                AdvTriggerRow(
+                    LanguageManager.t(
+                        "Kontrol bildirimi",
+                        "Control notification",
+                        context
+                    ),
+                    controlNotifOn
+                ) {
+                    controlNotifOn = it
+                    com.makay.wallpaper.util.WallpaperControlNotification.setEnabled(context, it)
+                }
+            }
+        }
+
+        Text(
             LanguageManager.t("Yedekleme", "Backup", context),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
@@ -224,22 +267,32 @@ fun AdvancedFeaturesSection() {
             ) {
                 Text(
                     LanguageManager.t(
-                        "Albümler ve ayarlar JSON olarak dışa/içe aktarılır.",
-                        "Albums and settings export/import as JSON.",
+                        "Albümler, ayarlar ve görseller zip olarak dışa/içe aktarılır. " +
+                            "Eski JSON yedekler de açılır.",
+                        "Albums, settings and images export/import as zip. " +
+                            "Legacy JSON backups still open.",
                         context
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 TvActionButton(
-                    onClick = { exportLauncher.launch("MakayWallpaper-backup.json") },
+                    onClick = { exportLauncher.launch(BackupRestore.ZIP_SUGGESTED_NAME) },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     idle = MaterialTheme.colorScheme.primary
                 ) {
                     Text(LanguageManager.t("Yedek al", "Export backup", context))
                 }
                 TvActionButton(
-                    onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) },
+                    onClick = {
+                        importLauncher.launch(
+                            arrayOf(
+                                "application/zip",
+                                "application/json",
+                                "*/*"
+                            )
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     idle = MaterialTheme.colorScheme.secondary
                 ) {
