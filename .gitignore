@@ -25,6 +25,16 @@ APK/build-*.txt
 APK/CURRENT.txt
 APK/APK-Hazirla-last.log
 
+# Yerel derleme / debug artiklari
+compile_err.txt
+gradle_build_log.txt
+gradle_info.txt
+extract-gradle.ps1
+
 # Keystores — never commit
+keystore/
 *.jks
 *.keystore
+signing/*.jks
+signing/*.keystore
+signing/keystore.properties

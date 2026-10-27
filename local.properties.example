@@ -1,0 +1,3 @@
+## Bu dosyayi local.properties olarak kopyalayin ve SDK yolunuzu yazin.
+## local.properties asla commit edilmez.
+sdk.dir=C\:\\Android\\Sdk
