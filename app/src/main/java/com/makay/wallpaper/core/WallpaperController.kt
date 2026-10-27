@@ -199,6 +199,7 @@ object WallpaperController {
 
     /**
      * @param sequential true ise (UI / jest) playOrder yok sayılır; albüm sırasıyla ilerler.
+     * Zamanlayıcı / tetikleyicilerde sıra yalnızca timer.playOrder ile belirlenir.
      */
     fun next(
         context: Context,
@@ -211,10 +212,7 @@ object WallpaperController {
         val order = if (sequential) {
             PlayOrder.SEQUENTIAL
         } else {
-            settings.timer.value.effectivePlayOrder().let { o ->
-                // Eski global random bayrağı
-                if (o == PlayOrder.SEQUENTIAL && settings.random.value) PlayOrder.RANDOM else o
-            }
+            settings.resolvedPlayOrder()
         }
         return when (order) {
             PlayOrder.RANDOM -> random(context, allowDayPart = false)
@@ -227,10 +225,10 @@ object WallpaperController {
     fun prev(context: Context): Boolean {
         if (isLandscapePaused(context)) return false
         val settings = WallpaperSettingsRepository.getInstance(context)
-        val order = settings.timer.value.effectivePlayOrder()
-        return when (order) {
+        return when (val order = settings.resolvedPlayOrder()) {
             PlayOrder.NEWEST_FIRST, PlayOrder.OLDEST_FIRST ->
                 advanceOrdered(context, -1, order)
+            // Rastgele modda geri = albüm listesinde bir önceki (karışıklığı bozmaz)
             else -> advance(context, -1)
         }
     }
@@ -359,7 +357,7 @@ object WallpaperController {
             val albumId = settings.activeAlbumId.value ?: return false
             val album = albums.getById(albumId) ?: return false
             if (album.images.isEmpty()) return false
-            val ordered = orderedIndices(album.images, order)
+            val ordered = orderedIndices(context, album.images, order)
             val current = settings.activeIndex.value.coerceIn(0, album.images.lastIndex)
             val pos = ordered.indexOf(current).let { if (it < 0) 0 else it }
             val size = ordered.size
@@ -368,7 +366,7 @@ object WallpaperController {
             if (settings.lockAlbumId.value != null) {
                 val lockAlbum = albums.getById(settings.lockAlbumId.value!!)
                 if (lockAlbum != null && lockAlbum.images.isNotEmpty()) {
-                    val lockOrdered = orderedIndices(lockAlbum.images, order)
+                    val lockOrdered = orderedIndices(context, lockAlbum.images, order)
                     val lc = settings.lockIndex.value.coerceIn(0, lockAlbum.images.lastIndex)
                     val lp = lockOrdered.indexOf(lc).let { if (it < 0) 0 else it }
                     val ls = lockOrdered.size
@@ -380,16 +378,40 @@ object WallpaperController {
         return applyCurrent(context)
     }
 
-    private fun orderedIndices(images: List<WallpaperImage>, order: PlayOrder): List<Int> {
-        val indexed = images.mapIndexed { i, img ->
-            val sortKey = if (img.addedAt > 0L) img.addedAt else i.toLong()
-            i to sortKey
+    private fun orderedIndices(
+        context: Context,
+        images: List<WallpaperImage>,
+        order: PlayOrder
+    ): List<Int> {
+        if (order != PlayOrder.NEWEST_FIRST && order != PlayOrder.OLDEST_FIRST) {
+            return images.indices.toList()
         }
+        val indexed = images.mapIndexed { i, img -> i to imageSortKey(context, img, i) }
         return when (order) {
             PlayOrder.NEWEST_FIRST -> indexed.sortedByDescending { it.second }.map { it.first }
             PlayOrder.OLDEST_FIRST -> indexed.sortedBy { it.second }.map { it.first }
             else -> images.indices.toList()
         }
+    }
+
+    /** addedAt yoksa dosya / belge zamanına düş (eski albümler için). */
+    private fun imageSortKey(context: Context, img: WallpaperImage, index: Int): Long {
+        if (img.addedAt > 0L) return img.addedAt
+        val uri = runCatching { Uri.parse(img.uri) }.getOrNull() ?: return index.toLong()
+        val fromDoc = runCatching {
+            androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)
+                ?.lastModified()
+                ?.takeIf { it > 0L }
+        }.getOrNull()
+        if (fromDoc != null) return fromDoc
+        if (uri.scheme == "file") {
+            val path = uri.path
+            if (!path.isNullOrBlank()) {
+                val modified = java.io.File(path).takeIf { it.isFile }?.lastModified() ?: 0L
+                if (modified > 0L) return modified
+            }
+        }
+        return index.toLong()
     }
 
     private fun switchAlbum(context: Context, delta: Int): Boolean {

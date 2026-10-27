@@ -2,6 +2,7 @@ package com.makay.wallpaper.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -82,125 +83,148 @@ fun AlbumsScreen(
             )
         }
     ) { padding ->
-        Column(
-            Modifier
+        // Sıra: Hızlı başlat → Kayıtlı albümler → Zamanlayıcı (tek kaydırma)
+        LazyColumn(
+            modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            QuickWallpaperSourceButtons(
-                onNeedPermission = onNeedPermission,
-                prominent = true,
-                onCompleted = { /* ana akış zaten uyguladı */ }
-            )
-
-            TimerControls(
-                compact = true,
-                modifier = Modifier.padding(top = 12.dp)
-            )
-
-            Text(
-                LanguageManager.t("Kayıtlı albümler", "Saved albums", context),
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-            )
-
-            TvActionButton(
-                onClick = { showCreate = true },
-                modifier = Modifier.fillMaxWidth().height(44.dp),
-                idle = MaterialTheme.colorScheme.tertiary
-            ) {
-                Text(LanguageManager.t("Boş albüm oluştur", "Create empty album", context))
+            item(key = "quick_start") {
+                QuickWallpaperSourceButtons(
+                    onNeedPermission = onNeedPermission,
+                    prominent = true,
+                    onCompleted = { /* ana akış zaten uyguladı */ }
+                )
             }
 
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(albums, key = { it.id }) { album ->
-                    val isActive = album.id == activeId
-                    Card(
-                        onClick = { onOpenAlbum(album.id) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+            item(key = "albums_header") {
+                Column(Modifier.padding(top = 8.dp)) {
+                    Text(
+                        LanguageManager.t("Kayıtlı albümler", "Saved albums", context),
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    TvActionButton(
+                        onClick = { showCreate = true },
+                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                        idle = MaterialTheme.colorScheme.tertiary
                     ) {
-                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(album.name, fontWeight = FontWeight.SemiBold)
-                                if (isActive) {
-                                    Text(
-                                        LanguageManager.t("Aktif", "Active", context),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                        Text(
+                            LanguageManager.t("Boş albüm oluştur", "Create empty album", context)
+                        )
+                    }
+                }
+            }
+
+            if (albums.isEmpty()) {
+                item(key = "albums_empty") {
+                    Text(
+                        LanguageManager.t(
+                            "Henüz albüm yok. Hızlı başlat ile görsel/klasör seçin veya boş albüm oluşturun.",
+                            "No albums yet. Use Quick start or create an empty album.",
+                            context
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            }
+
+            items(albums, key = { it.id }) { album ->
+                val isActive = album.id == activeId
+                Card(
+                    onClick = { onOpenAlbum(album.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(album.name, fontWeight = FontWeight.SemiBold)
+                            if (isActive) {
+                                Text(
+                                    LanguageManager.t("Aktif", "Active", context),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
-                            Text(
-                                LanguageManager.t(
-                                    "${album.images.size} görsel",
-                                    "${album.images.size} images",
-                                    context
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                TextButton(onClick = {
-                                    renameAlbumId = album.id
-                                    renameValue = album.name
-                                }) {
-                                    Text(LanguageManager.t("Ad", "Rename", context))
-                                }
-                                TextButton(onClick = { launchImages(album.id) }) {
-                                    Text(LanguageManager.t("Görsel", "Images", context))
-                                }
-                                TextButton(onClick = { launchFolder(album.id) }) {
-                                    Text(LanguageManager.t("Klasör", "Folder", context))
-                                }
-                                TextButton(
-                                    onClick = {
-                                        if (album.images.isEmpty()) {
-                                            Toast.makeText(
-                                                context,
-                                                LanguageManager.t(
-                                                    "Önce görsel ekleyin",
-                                                    "Add images first",
-                                                    context
-                                                ),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        } else if (WallpaperController.setAlbum(context, album.id)) {
-                                            Toast.makeText(
-                                                context,
-                                                LanguageManager.t(
-                                                    "Uygulandı",
-                                                    "Applied",
-                                                    context
-                                                ),
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
+                        }
+                        Text(
+                            LanguageManager.t(
+                                "${album.images.size} görsel",
+                                "${album.images.size} images",
+                                context
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            TextButton(onClick = {
+                                renameAlbumId = album.id
+                                renameValue = album.name
+                            }) {
+                                Text(LanguageManager.t("Ad", "Rename", context))
+                            }
+                            TextButton(onClick = { launchImages(album.id) }) {
+                                Text(LanguageManager.t("Görsel", "Images", context))
+                            }
+                            TextButton(onClick = { launchFolder(album.id) }) {
+                                Text(LanguageManager.t("Klasör", "Folder", context))
+                            }
+                            TextButton(
+                                onClick = {
+                                    if (album.images.isEmpty()) {
+                                        Toast.makeText(
+                                            context,
+                                            LanguageManager.t(
+                                                "Önce görsel ekleyin",
+                                                "Add images first",
+                                                context
+                                            ),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else if (WallpaperController.setAlbum(context, album.id)) {
+                                        Toast.makeText(
+                                            context,
+                                            LanguageManager.t(
+                                                "Uygulandı",
+                                                "Applied",
+                                                context
+                                            ),
+                                            Toast.LENGTH_SHORT
+                                        ).show()
                                     }
-                                ) {
-                                    Text(
-                                        LanguageManager.t("Kullan", "Use", context),
-                                        fontWeight = FontWeight.Bold
-                                    )
                                 }
+                            ) {
+                                Text(
+                                    LanguageManager.t("Kullan", "Use", context),
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                     }
                 }
+            }
+
+            item(key = "timer_section") {
+                TimerControls(
+                    compact = true,
+                    modifier = Modifier.padding(top = 12.dp, bottom = 8.dp)
+                )
             }
         }
     }

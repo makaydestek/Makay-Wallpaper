@@ -1,15 +1,22 @@
 package com.makay.wallpaper.ui
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -20,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -35,7 +43,9 @@ import com.makay.wallpaper.util.LanguageManager
 
 /**
  * Zamanlayıcı kontrolleri — Albümler ekranında (ve isteğe bağlı ayrı Timer ekranında) kullanılır.
+ * compact=true: özet satır + açılır ayarlar (Albümler sayfası için).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TimerControls(modifier: Modifier = Modifier, compact: Boolean = false) {
     val context = LocalContext.current
@@ -47,10 +57,20 @@ fun TimerControls(modifier: Modifier = Modifier, compact: Boolean = false) {
         mutableStateOf(timer.intervalValue.toString())
     }
     val playOrder = timer.effectivePlayOrder()
+    var expanded by remember { mutableStateOf(!compact) }
 
     fun save(updated: TimerSettings) {
-        repo.setTimer(updated)
-        if (updated.enabled) {
+        // Her zaman son timer üzerine yaz — aralık kaydı sıralamayı geri almasın
+        val base = repo.timer.value
+        val merged = base.copy(
+            enabled = updated.enabled,
+            intervalValue = updated.intervalValue,
+            unit = updated.unit,
+            playOrder = updated.playOrder,
+            random = updated.random
+        )
+        repo.setTimer(merged)
+        if (merged.enabled) {
             WallpaperScheduler.scheduleTimer(context)
         } else {
             WallpaperScheduler.cancelTimer(context)
@@ -58,8 +78,8 @@ fun TimerControls(modifier: Modifier = Modifier, compact: Boolean = false) {
     }
 
     fun setEnabled(enabled: Boolean) {
-        val v = valueText.toIntOrNull()?.coerceAtLeast(1) ?: timer.intervalValue
-        save(timer.copy(intervalValue = v, enabled = enabled))
+        val v = valueText.toIntOrNull()?.coerceAtLeast(1) ?: repo.timer.value.intervalValue
+        save(repo.timer.value.copy(intervalValue = v, enabled = enabled))
         Toast.makeText(
             context,
             if (enabled) {
@@ -72,20 +92,18 @@ fun TimerControls(modifier: Modifier = Modifier, compact: Boolean = false) {
     }
 
     fun setPlayOrder(order: PlayOrder) {
-        save(
-            timer.copy(
-                playOrder = order,
-                random = order == PlayOrder.RANDOM
-            )
-        )
-        if (order == PlayOrder.RANDOM) {
-            repo.clearShuffleQueue()
+        // repo üzerinden: stale Compose state ile playOrder ezilmesin
+        repo.setPlayOrder(order)
+        val latest = repo.timer.value
+        if (latest.enabled) {
+            WallpaperScheduler.scheduleTimer(context)
         }
     }
 
     fun applyNow() {
-        val v = valueText.toIntOrNull()?.coerceAtLeast(1) ?: timer.intervalValue
-        val updated = timer.copy(intervalValue = v)
+        val latest = repo.timer.value
+        val v = valueText.toIntOrNull()?.coerceAtLeast(1) ?: latest.intervalValue
+        val updated = latest.copy(intervalValue = v)
         save(updated)
 
         if (!updated.enabled) {
@@ -136,124 +154,164 @@ fun TimerControls(modifier: Modifier = Modifier, compact: Boolean = false) {
         ).show()
     }
 
+    fun unitLabel(unit: IntervalUnit): String = when (unit) {
+        IntervalUnit.SECONDS -> LanguageManager.t("Sn", "Sec", context)
+        IntervalUnit.MINUTES -> LanguageManager.t("Dk", "Min", context)
+        IntervalUnit.HOURS -> LanguageManager.t("Sa", "Hr", context)
+        IntervalUnit.DAYS -> LanguageManager.t("Gün", "Day", context)
+    }
+
+    fun orderLabel(order: PlayOrder): String = when (order) {
+        PlayOrder.SEQUENTIAL -> LanguageManager.t("Sıralı", "Sequential", context)
+        PlayOrder.RANDOM -> LanguageManager.t("Rastgele", "Random", context)
+        PlayOrder.NEWEST_FIRST -> LanguageManager.t("Yeniden eskiye", "Newest first", context)
+        PlayOrder.OLDEST_FIRST -> LanguageManager.t("Eskiden yeniye", "Oldest first", context)
+    }
+
+    val summary = if (timer.enabled) {
+        LanguageManager.t(
+            "Her ${timer.intervalValue} ${unitLabel(timer.unit)} · ${orderLabel(playOrder)}",
+            "Every ${timer.intervalValue} ${unitLabel(timer.unit)} · ${orderLabel(playOrder)}",
+            context
+        )
+    } else {
+        LanguageManager.t("Kapalı", "Off", context)
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        )
     ) {
         Column(
-            Modifier.padding(if (compact) 12.dp else 14.dp),
+            Modifier.padding(if (compact) 14.dp else 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    LanguageManager.t("Zamanlayıcı", "Timer", context),
-                    fontWeight = FontWeight.SemiBold,
-                    style = MaterialTheme.typography.titleMedium
-                )
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .then(
+                            if (compact) {
+                                Modifier.clickable { expanded = !expanded }
+                            } else {
+                                Modifier
+                            }
+                        )
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            LanguageManager.t("Zamanlayıcı", "Timer", context),
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        if (compact) {
+                            Text(
+                                if (expanded) "▾" else "▸",
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                    }
+                    Text(
+                        summary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (timer.enabled) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
                 Switch(
                     checked = timer.enabled,
                     onCheckedChange = { setEnabled(it) }
                 )
             }
 
-            Text(
-                if (timer.enabled) {
-                    LanguageManager.t("Açık — otomatik değişim", "On — auto-change", context)
-                } else {
-                    LanguageManager.t("Kapalı", "Off", context)
-                },
-                style = MaterialTheme.typography.labelMedium,
-                color = if (timer.enabled) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
-            )
+            AnimatedVisibility(visible = expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    HorizontalDivider()
 
-            OutlinedTextField(
-                value = valueText,
-                onValueChange = {
-                    valueText = it.filter { c -> c.isDigit() }.take(5)
-                    val v = valueText.toIntOrNull()?.coerceAtLeast(1) ?: return@OutlinedTextField
-                    save(timer.copy(intervalValue = v))
-                },
-                label = { Text(LanguageManager.t("Aralık", "Interval", context)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Text(LanguageManager.t("Birim", "Unit", context), fontWeight = FontWeight.SemiBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                IntervalUnit.entries.forEach { unit ->
-                    FilterChip(
-                        selected = timer.unit == unit,
-                        onClick = { save(timer.copy(unit = unit)) },
-                        label = {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = valueText,
+                            onValueChange = {
+                                valueText = it.filter { c -> c.isDigit() }.take(5)
+                                val v = valueText.toIntOrNull()?.coerceAtLeast(1)
+                                    ?: return@OutlinedTextField
+                                save(repo.timer.value.copy(intervalValue = v))
+                            },
+                            label = {
+                                Text(LanguageManager.t("Aralık", "Interval", context))
+                            },
+                            singleLine = true,
+                            modifier = Modifier.widthIn(min = 96.dp).weight(0.35f)
+                        )
+                        Column(Modifier.weight(0.65f)) {
                             Text(
-                                when (unit) {
-                                    IntervalUnit.SECONDS -> LanguageManager.t("Sn", "Sec", context)
-                                    IntervalUnit.MINUTES -> LanguageManager.t("Dk", "Min", context)
-                                    IntervalUnit.HOURS -> LanguageManager.t("Sa", "Hr", context)
-                                    IntervalUnit.DAYS -> LanguageManager.t("Gün", "Day", context)
+                                LanguageManager.t("Birim", "Unit", context),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                IntervalUnit.entries.forEach { unit ->
+                                    FilterChip(
+                                        selected = timer.unit == unit,
+                                        onClick = {
+                                            save(repo.timer.value.copy(unit = unit))
+                                        },
+                                        label = { Text(unitLabel(unit)) }
+                                    )
                                 }
-                            )
+                            }
                         }
-                    )
-                }
-            }
+                    }
 
-            Text(
-                LanguageManager.t("Sıralama", "Order", context),
-                fontWeight = FontWeight.SemiBold
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(
-                        selected = playOrder == PlayOrder.SEQUENTIAL,
-                        onClick = { setPlayOrder(PlayOrder.SEQUENTIAL) },
-                        label = {
-                            Text(LanguageManager.t("Sıralı", "Sequential", context))
-                        }
+                    Text(
+                        LanguageManager.t("Sıralama", "Order", context),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    FilterChip(
-                        selected = playOrder == PlayOrder.RANDOM,
-                        onClick = { setPlayOrder(PlayOrder.RANDOM) },
-                        label = {
-                            Text(LanguageManager.t("Rastgele", "Random", context))
-                        }
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(
-                        selected = playOrder == PlayOrder.NEWEST_FIRST,
-                        onClick = { setPlayOrder(PlayOrder.NEWEST_FIRST) },
-                        label = {
-                            Text(
-                                LanguageManager.t("Yeniden eskiye", "Newest first", context)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        PlayOrder.entries.forEach { order ->
+                            FilterChip(
+                                selected = playOrder == order,
+                                onClick = { setPlayOrder(order) },
+                                label = { Text(orderLabel(order)) }
                             )
                         }
-                    )
-                    FilterChip(
-                        selected = playOrder == PlayOrder.OLDEST_FIRST,
-                        onClick = { setPlayOrder(PlayOrder.OLDEST_FIRST) },
-                        label = {
-                            Text(
-                                LanguageManager.t("Eskiden yeniye", "Oldest first", context)
-                            )
-                        }
-                    )
-                }
-            }
+                    }
 
-            TvActionButton(
-                onClick = { applyNow() },
-                modifier = Modifier.fillMaxWidth().height(44.dp),
-                idle = MaterialTheme.colorScheme.primary
-            ) {
-                Text(LanguageManager.t("Uygula", "Apply", context))
+                    TvActionButton(
+                        onClick = { applyNow() },
+                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                        idle = MaterialTheme.colorScheme.primary
+                    ) {
+                        Text(LanguageManager.t("Uygula", "Apply", context))
+                    }
+                }
             }
         }
     }

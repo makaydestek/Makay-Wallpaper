@@ -53,8 +53,12 @@ data class TimerSettings(
     val random: Boolean = false,
     val playOrder: PlayOrder = PlayOrder.SEQUENTIAL
 ) {
-    fun effectivePlayOrder(): PlayOrder =
-        if (playOrder == PlayOrder.SEQUENTIAL && random) PlayOrder.RANDOM else playOrder
+    fun effectivePlayOrder(): PlayOrder = when {
+        // playOrder alanı varsa ona güven; random yalnız eski JSON yedekleri için
+        playOrder != PlayOrder.SEQUENTIAL -> playOrder
+        random -> PlayOrder.RANDOM
+        else -> PlayOrder.SEQUENTIAL
+    }
 
     fun intervalMillis(): Long {
         val v = intervalValue.coerceAtLeast(1).toLong()

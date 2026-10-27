@@ -28,6 +28,15 @@ class WallpaperSettingsRepository private constructor(context: Context) {
     private val _timer = MutableStateFlow(loadTimer())
     val timer: StateFlow<TimerSettings> = _timer.asStateFlow()
 
+    init {
+        // Eski KEY_RANDOM ile timer.playOrder senkron kalsın (sıralı seçimi ezmesin)
+        val order = _timer.value.effectivePlayOrder()
+        val wantRandom = order == PlayOrder.RANDOM
+        if (prefs.getBoolean(KEY_RANDOM, false) != wantRandom) {
+            prefs.edit().putBoolean(KEY_RANDOM, wantRandom).commit()
+        }
+    }
+
     private val _triggers = MutableStateFlow(loadTriggers())
     val triggers: StateFlow<ChangeTriggers> = _triggers.asStateFlow()
 
@@ -47,8 +56,13 @@ class WallpaperSettingsRepository private constructor(context: Context) {
     private val _lockIndex = MutableStateFlow(prefs.getInt(KEY_LOCK_INDEX, 0))
     val lockIndex: StateFlow<Int> = _lockIndex.asStateFlow()
 
-    private val _random = MutableStateFlow(prefs.getBoolean(KEY_RANDOM, false))
+    private val _random = MutableStateFlow(
+        _timer.value.effectivePlayOrder() == PlayOrder.RANDOM
+    )
     val random: StateFlow<Boolean> = _random.asStateFlow()
+
+    /** Zamanlayıcı değişiminde kullanılacak kesin sıra (global random bayrağı yok sayılır). */
+    fun resolvedPlayOrder(): PlayOrder = _timer.value.effectivePlayOrder()
 
     private val _target = MutableStateFlow(loadTarget())
     val target: StateFlow<WallpaperTarget> = _target.asStateFlow()
@@ -78,16 +92,28 @@ class WallpaperSettingsRepository private constructor(context: Context) {
     private val shuffleLock = Any()
 
     fun setTimer(settings: TimerSettings) {
+        val order = settings.effectivePlayOrder()
         val normalized = settings.copy(
-            random = settings.effectivePlayOrder() == PlayOrder.RANDOM,
-            playOrder = settings.effectivePlayOrder()
+            random = order == PlayOrder.RANDOM,
+            playOrder = order
         )
-        prefs.edit().putString(KEY_TIMER, gson.toJson(normalized)).apply()
+        // commit: worker / alarm hemen güncel playOrder okusun
+        prefs.edit().putString(KEY_TIMER, gson.toJson(normalized)).commit()
         _timer.value = normalized
-        setRandom(normalized.playOrder == PlayOrder.RANDOM)
-        if (normalized.playOrder != PlayOrder.RANDOM) {
+        setRandom(order == PlayOrder.RANDOM)
+        if (order != PlayOrder.RANDOM) {
             clearShuffleQueue()
         }
+    }
+
+    fun setPlayOrder(order: PlayOrder) {
+        val current = _timer.value
+        setTimer(
+            current.copy(
+                playOrder = order,
+                random = order == PlayOrder.RANDOM
+            )
+        )
     }
 
     fun setShowTimerOnHome(show: Boolean) {
@@ -165,7 +191,7 @@ class WallpaperSettingsRepository private constructor(context: Context) {
     }
 
     fun setRandom(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_RANDOM, enabled).apply()
+        prefs.edit().putBoolean(KEY_RANDOM, enabled).commit()
         _random.value = enabled
     }
 
@@ -257,7 +283,12 @@ class WallpaperSettingsRepository private constructor(context: Context) {
             (root["lockAlbumId"] as? String)?.let { setLockAlbumId(it) }
             ((root["activeIndex"] as? Number)?.toInt())?.let { setActiveIndex(it) }
             ((root["lockIndex"] as? Number)?.toInt())?.let { setLockIndex(it) }
-            (root["random"] as? Boolean)?.let { setRandom(it) }
+            // random bayrağı timer.playOrder’dan gelir; kök "random" sıralı seçimi ezmesin
+            if (root["timer"] == null) {
+                (root["random"] as? Boolean)?.let { setRandom(it) }
+            } else {
+                setRandom(_timer.value.effectivePlayOrder() == PlayOrder.RANDOM)
+            }
             (root["target"] as? String)?.let {
                 runCatching { setTarget(WallpaperTarget.valueOf(it)) }
             }
