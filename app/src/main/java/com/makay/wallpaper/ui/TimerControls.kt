@@ -5,13 +5,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.makay.wallpaper.core.WallpaperController
 import com.makay.wallpaper.core.WallpaperScheduler
@@ -45,7 +45,6 @@ import com.makay.wallpaper.util.LanguageManager
  * Zamanlayıcı kontrolleri — Albümler ekranında (ve isteğe bağlı ayrı Timer ekranında) kullanılır.
  * compact=true: özet satır + açılır ayarlar (Albümler sayfası için).
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TimerControls(modifier: Modifier = Modifier, compact: Boolean = false) {
     val context = LocalContext.current
@@ -164,8 +163,8 @@ fun TimerControls(modifier: Modifier = Modifier, compact: Boolean = false) {
     fun orderLabel(order: PlayOrder): String = when (order) {
         PlayOrder.SEQUENTIAL -> LanguageManager.t("Sıralı", "Sequential", context)
         PlayOrder.RANDOM -> LanguageManager.t("Rastgele", "Random", context)
-        PlayOrder.NEWEST_FIRST -> LanguageManager.t("Yeniden eskiye", "Newest first", context)
-        PlayOrder.OLDEST_FIRST -> LanguageManager.t("Eskiden yeniye", "Oldest first", context)
+        PlayOrder.NEWEST_FIRST -> LanguageManager.t("Yeni → eski", "Newest first", context)
+        PlayOrder.OLDEST_FIRST -> LanguageManager.t("Eski → yeni", "Oldest first", context)
     }
 
     val summary = if (timer.enabled) {
@@ -243,66 +242,46 @@ fun TimerControls(modifier: Modifier = Modifier, compact: Boolean = false) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     HorizontalDivider()
 
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = valueText,
-                            onValueChange = {
-                                valueText = it.filter { c -> c.isDigit() }.take(5)
-                                val v = valueText.toIntOrNull()?.coerceAtLeast(1)
-                                    ?: return@OutlinedTextField
-                                save(repo.timer.value.copy(intervalValue = v))
-                            },
-                            label = {
-                                Text(LanguageManager.t("Aralık", "Interval", context))
-                            },
-                            singleLine = true,
-                            modifier = Modifier.widthIn(min = 96.dp).weight(0.35f)
-                        )
-                        Column(Modifier.weight(0.65f)) {
-                            Text(
-                                LanguageManager.t("Birim", "Unit", context),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                IntervalUnit.entries.forEach { unit ->
-                                    FilterChip(
-                                        selected = timer.unit == unit,
-                                        onClick = {
-                                            save(repo.timer.value.copy(unit = unit))
-                                        },
-                                        label = { Text(unitLabel(unit)) }
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    OutlinedTextField(
+                        value = valueText,
+                        onValueChange = {
+                            valueText = it.filter { c -> c.isDigit() }.take(5)
+                            val v = valueText.toIntOrNull()?.coerceAtLeast(1)
+                                ?: return@OutlinedTextField
+                            save(repo.timer.value.copy(intervalValue = v))
+                        },
+                        label = {
+                            Text(LanguageManager.t("Aralık", "Interval", context))
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text(
+                        LanguageManager.t("Birim", "Unit", context),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    EqualFilterChipGrid(
+                        items = IntervalUnit.entries,
+                        selected = timer.unit,
+                        columns = 2,
+                        label = { unitLabel(it) },
+                        onSelect = { save(repo.timer.value.copy(unit = it)) }
+                    )
 
                     Text(
                         LanguageManager.t("Sıralama", "Order", context),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold
                     )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        PlayOrder.entries.forEach { order ->
-                            FilterChip(
-                                selected = playOrder == order,
-                                onClick = { setPlayOrder(order) },
-                                label = { Text(orderLabel(order)) }
-                            )
-                        }
-                    }
+                    EqualFilterChipGrid(
+                        items = PlayOrder.entries,
+                        selected = playOrder,
+                        columns = 2,
+                        label = { orderLabel(it) },
+                        onSelect = { setPlayOrder(it) }
+                    )
 
                     TvActionButton(
                         onClick = { applyNow() },
@@ -311,6 +290,51 @@ fun TimerControls(modifier: Modifier = Modifier, compact: Boolean = false) {
                     ) {
                         Text(LanguageManager.t("Uygula", "Apply", context))
                     }
+                }
+            }
+        }
+    }
+}
+
+/** Eşit genişlikte chip ızgarası — düzensiz kaymayı önler. */
+@Composable
+fun <T> EqualFilterChipGrid(
+    items: List<T>,
+    selected: T,
+    onSelect: (T) -> Unit,
+    label: (T) -> String,
+    columns: Int = 2,
+    modifier: Modifier = Modifier
+) {
+    val rows = items.chunked(columns.coerceAtLeast(1))
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        rows.forEach { rowItems ->
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                rowItems.forEach { item ->
+                    FilterChip(
+                        selected = selected == item,
+                        onClick = { onSelect(item) },
+                        modifier = Modifier.weight(1f),
+                        label = {
+                            Text(
+                                label(item),
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+                    )
+                }
+                repeat(columns - rowItems.size) {
+                    Spacer(Modifier.weight(1f))
                 }
             }
         }

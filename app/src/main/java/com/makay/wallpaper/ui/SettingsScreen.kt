@@ -1,6 +1,7 @@
 package com.makay.wallpaper.ui
 
 import android.app.Application
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Scaffold
@@ -28,7 +30,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -40,13 +44,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.makay.wallpaper.BuildConfig
-import com.makay.wallpaper.data.ThemeRepository
-import com.makay.wallpaper.data.WallpaperSettingsRepository
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import com.makay.wallpaper.core.WallpaperApplier
 import com.makay.wallpaper.core.WallpaperController
+import com.makay.wallpaper.data.ThemeRepository
+import com.makay.wallpaper.data.WallpaperSettingsRepository
 import com.makay.wallpaper.domain.model.DisplayFitSettings
 import com.makay.wallpaper.domain.model.FitMode
 import com.makay.wallpaper.domain.model.GestureAction
@@ -330,12 +331,12 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                                     "• 1) Canlı duvar kağıdı → Ana ekran\n" +
                                     "• 2) Jest griyse: Kısıtlanmış ayara izin ver\n" +
                                     "• 3) «Makay Wallpaper jestleri»ni aç\n" +
-                                    "• 4) Gestures açık + Çift dokunuş = NEXT",
+                                    "• 4) Gestures açık + Çift dokunuş = Sonraki",
                                 "• Phone: Settings → Lock screen → Double tap off\n" +
                                     "• 1) Live wallpaper → Home\n" +
                                     "• 2) If greyed: Allow restricted settings\n" +
                                     "• 3) Enable Makay Wallpaper gestures\n" +
-                                    "• 4) Gestures on + Double tap = NEXT",
+                                    "• 4) Gestures on + Double tap = Next",
                                 context
                             ),
                             style = MaterialTheme.typography.bodySmall,
@@ -924,18 +925,22 @@ private fun TriggerRow(label: String, checked: Boolean, onChange: (Boolean) -> U
 
 @Composable
 private fun GestureChips(selected: GestureAction, onSelect: (GestureAction) -> Unit) {
-    androidx.compose.foundation.layout.Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        GestureAction.entries.forEach { action ->
-            FilterChip(
-                selected = selected == action,
-                onClick = { onSelect(action) },
-                label = { Text(action.name, style = MaterialTheme.typography.labelSmall) }
-            )
-        }
-    }
+    val context = LocalContext.current
+    EqualFilterChipGrid(
+        items = GestureAction.entries,
+        selected = selected,
+        columns = 2,
+        label = { gestureActionLabel(it, context) },
+        onSelect = onSelect
+    )
+}
+
+private fun gestureActionLabel(action: GestureAction, context: Context): String = when (action) {
+    GestureAction.NEXT -> LanguageManager.t("Sonraki", "Next", context)
+    GestureAction.PREV -> LanguageManager.t("Önceki", "Previous", context)
+    GestureAction.NEXT_ALBUM -> LanguageManager.t("Sonraki albüm", "Next album", context)
+    GestureAction.PREV_ALBUM -> LanguageManager.t("Önceki albüm", "Prev album", context)
+    GestureAction.NONE -> LanguageManager.t("Yok", "None", context)
 }
 
 @Composable

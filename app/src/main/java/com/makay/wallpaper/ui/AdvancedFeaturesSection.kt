@@ -4,6 +4,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -330,6 +332,7 @@ private fun AdvTriggerRow(label: String, checked: Boolean, onChange: (Boolean) -
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DayPartPicker(
     label: String,
@@ -339,16 +342,21 @@ private fun DayPartPicker(
 ) {
     val context = LocalContext.current
     Text(label, fontWeight = FontWeight.SemiBold)
-    FilterChip(
-        selected = selectedId == null,
-        onClick = { onSelect(null) },
-        label = { Text(LanguageManager.t("Yok", "None", context)) }
-    )
-    albums.forEach { a ->
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
         FilterChip(
-            selected = selectedId == a.id,
-            onClick = { onSelect(a.id) },
-            label = { Text(a.name) }
+            selected = selectedId == null,
+            onClick = { onSelect(null) },
+            label = { Text(LanguageManager.t("Yok", "None", context)) }
         )
+        albums.forEach { a ->
+            FilterChip(
+                selected = selectedId == a.id,
+                onClick = { onSelect(a.id) },
+                label = { Text(a.name) }
+            )
+        }
     }
 }
