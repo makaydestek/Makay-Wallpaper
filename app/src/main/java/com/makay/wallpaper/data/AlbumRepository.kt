@@ -82,9 +82,10 @@ class AlbumRepository private constructor(context: Context) {
         val album = getById(albumId) ?: return
         val existing = album.images.map { it.uri }.toHashSet()
         val added = ArrayList<WallpaperImage>()
-        for (uri in uris) {
+        val now = System.currentTimeMillis()
+        uris.forEachIndexed { offset, uri ->
             if (existing.add(uri)) {
-                added.add(WallpaperImage(uri = uri))
+                added.add(WallpaperImage(uri = uri, addedAt = now + offset))
             }
         }
         if (added.isEmpty()) return
@@ -113,8 +114,10 @@ class AlbumRepository private constructor(context: Context) {
         val folderPath = album.folderPath
         val byUri = album.images.associateBy { it.uri }
         val scannedOrdered = LinkedHashSet(scannedUris)
+        val now = System.currentTimeMillis()
+        var newOffset = 0
         val folderImages = scannedOrdered.map { uri ->
-            byUri[uri] ?: WallpaperImage(uri = uri)
+            byUri[uri] ?: WallpaperImage(uri = uri, addedAt = now + newOffset++)
         }
         // Klasör dışı elle eklenenler korunur; path yoksa tarama albümün tamamını temsil eder
         val manualKept = if (folderPath.isNullOrBlank()) {

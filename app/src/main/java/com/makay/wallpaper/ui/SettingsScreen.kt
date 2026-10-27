@@ -71,6 +71,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
     val gestures by settings.gestures.collectAsState()
     val target by settings.target.collectAsState()
     val displayFit by settings.displayFit.collectAsState()
+    val showTimerOnHome by settings.showTimerOnHome.collectAsState()
     val currentLang by LanguageManager.lang.collectAsState()
     LanguageManager.init(context)
     val deviceSize = remember { WallpaperApplier.deviceScreenSize(context) }
@@ -217,6 +218,33 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             }
 
             Text(
+                LanguageManager.t("Ana menü", "Home menu", context),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TriggerRow(
+                        LanguageManager.t(
+                            "Zamanlayıcı menüsünü göster",
+                            "Show timer menu",
+                            context
+                        ),
+                        showTimerOnHome
+                    ) { settings.setShowTimerOnHome(it) }
+                    Text(
+                        LanguageManager.t(
+                            "Kapalıyken zamanlayıcı Albümler ekranından yönetilir.",
+                            "When off, manage the timer from the Albums screen.",
+                            context
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Text(
                 LanguageManager.t("Tetikleyiciler", "Triggers", context),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
@@ -279,34 +307,6 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     val setupOk = liveActive && a11yOn && gestures.enabled
                     Text(
                         LanguageManager.t(
-                            "Ana ekranda çift dokunuşla sonraki fotoğraf için " +
-                                "aşağıdaki adımları sırayla tamamlayın (Xiaomi / HyperOS):",
-                            "To change wallpaper with a home double-tap, complete these steps " +
-                                "(Xiaomi / HyperOS):",
-                            context
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        LanguageManager.t(
-                            "• Telefon: Ayarlar → Kilit ekranı → «Çift dokunun» kapalı olsun\n" +
-                                "• 1) Canlı duvar kağıdı → «Ana ekran» seçin\n" +
-                                "• 2) Jest griyse: Kısıtlanmış ayara izin verin\n" +
-                                "• 3) «Makay Wallpaper jestleri»ni açın\n" +
-                                "• 4) Gestures açık + Çift dokunuş = NEXT",
-                            "• Phone: Settings → Lock screen → turn Double tap off\n" +
-                                "• 1) Set live wallpaper → Home\n" +
-                                "• 2) If gestures are greyed: Allow restricted settings\n" +
-                                "• 3) Enable “Makay Wallpaper gestures”\n" +
-                                "• 4) Gestures on + Double tap = NEXT",
-                            context
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        LanguageManager.t(
                             "Durum: ${com.makay.wallpaper.util.LiveWallpaperHelper.statusLabel(context)}" +
                                 if (setupOk) " · hazır" else " · eksik adım var",
                             "Status: ${com.makay.wallpaper.util.LiveWallpaperHelper.statusLabel(context)}" +
@@ -320,18 +320,50 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                             MaterialTheme.colorScheme.error
                         }
                     )
+                    SettingsHelpSection(
+                        titleTr = "Kurulum adımları (Xiaomi / HyperOS)",
+                        titleEn = "Setup steps (Xiaomi / HyperOS)"
+                    ) {
+                        Text(
+                            LanguageManager.t(
+                                "• Telefon: Ayarlar → Kilit ekranı → «Çift dokunun» kapalı\n" +
+                                    "• 1) Canlı duvar kağıdı → Ana ekran\n" +
+                                    "• 2) Jest griyse: Kısıtlanmış ayara izin ver\n" +
+                                    "• 3) «Makay Wallpaper jestleri»ni aç\n" +
+                                    "• 4) Gestures açık + Çift dokunuş = NEXT",
+                                "• Phone: Settings → Lock screen → Double tap off\n" +
+                                    "• 1) Live wallpaper → Home\n" +
+                                    "• 2) If greyed: Allow restricted settings\n" +
+                                    "• 3) Enable Makay Wallpaper gestures\n" +
+                                    "• 4) Gestures on + Double tap = NEXT",
+                                context
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            LanguageManager.t(
+                                "2. adımda jest griyse: Uygulama bilgisi → ⋮ → " +
+                                    "Kısıtlanmış ayarlara izin ver.",
+                                "If step 2 is greyed: App info → ⋮ → Allow restricted settings.",
+                                context
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     TvActionButton(
                         onClick = {
                             com.makay.wallpaper.util.LiveWallpaperHelper.openLiveWallpaperSetup(context)
                             statusTick++
                         },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        modifier = Modifier.fillMaxWidth().height(44.dp),
                         idle = MaterialTheme.colorScheme.secondary
                     ) {
                         Text(
                             LanguageManager.t(
-                                "1) Canlı duvar kağıdını ayarla",
-                                "1) Set live wallpaper",
+                                "1) Canlı duvar kağıdı",
+                                "1) Live wallpaper",
                                 context
                             )
                         )
@@ -341,62 +373,38 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                             com.makay.wallpaper.util.LiveWallpaperHelper
                                 .openAppDetailsForRestrictedSettings(context)
                         },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        modifier = Modifier.fillMaxWidth().height(44.dp),
                         idle = MaterialTheme.colorScheme.errorContainer,
                         idleContent = MaterialTheme.colorScheme.onErrorContainer
                     ) {
                         Text(
                             LanguageManager.t(
-                                "2) Kısıtlanmış ayara izin ver",
-                                "2) Allow restricted settings",
+                                "2) Kısıtlanmış ayar",
+                                "2) Restricted settings",
                                 context
                             )
                         )
                     }
-                    Text(
-                        LanguageManager.t(
-                            "«Makay Wallpaper jestleri» gri / «Kısıtlanmış ayar tarafından " +
-                                "kontrol ediliyor» yazıyorsa: bu butona basın → sağ üst ⋮ → " +
-                                "«Kısıtlanmış ayarlara izin ver» → açın. Sonra 3. adıma geçin.",
-                            "If “Makay Wallpaper gestures” is greyed / “Controlled by a " +
-                                "restricted setting”: tap this → top-right ⋮ → Allow restricted " +
-                                "settings → On. Then continue with step 3.",
-                            context
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                     TvActionButton(
                         onClick = {
                             com.makay.wallpaper.service.DoubleTapAccessibilityService
                                 .openAccessibilitySettings(context)
                             statusTick++
                         },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        modifier = Modifier.fillMaxWidth().height(44.dp),
                         idle = MaterialTheme.colorScheme.tertiary
                     ) {
                         Text(
                             LanguageManager.t(
-                                "3) Jest erişilebilirliğini aç (MIUI)",
-                                "3) Enable gesture accessibility (MIUI)",
+                                "3) Jest erişilebilirliği",
+                                "3) Gesture accessibility",
                                 context
                             )
                         )
                     }
-                    Text(
-                        LanguageManager.t(
-                            "Erişilebilirlik → İndirilen uygulamalar → Makay Wallpaper jestleri → " +
-                                "özelliği açın. Durum «erişilebilirlik açık» olmalı.",
-                            "Accessibility → Downloaded apps → Makay Wallpaper gestures → turn on. " +
-                                "Status should show accessibility on.",
-                            context
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                     TvActionButton(
                         onClick = { statusTick++ },
-                        modifier = Modifier.fillMaxWidth().height(40.dp),
+                        modifier = Modifier.fillMaxWidth().height(36.dp),
                         idle = MaterialTheme.colorScheme.surfaceVariant,
                         idleContent = MaterialTheme.colorScheme.onSurfaceVariant
                     ) {
@@ -433,28 +441,18 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        LanguageManager.t(
-                            "Sosyal medya / internet görselleri telefon oranına uymayabilir. Buradan tam ekran oturtma şeklini seçin.",
-                            "Social / web images often don't match phone aspect. Choose how to fill the screen.",
-                            context
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    HorizontalDivider()
                     FitHowToGuideCard(context)
-                    HorizontalDivider()
                     Text(
                         LanguageManager.t("Sığdırma modu", "Fit mode", context),
                         fontWeight = FontWeight.SemiBold
                     )
                     FitMode.entries.forEach { mode ->
+                        val selected = displayFit.fitMode == mode
                         TvFocusRow(onClick = {
                             settings.setDisplayFit(displayFit.copy(fitMode = mode))
                         }) {
                             RadioButton(
-                                selected = displayFit.fitMode == mode,
+                                selected = selected,
                                 onClick = null,
                                 modifier = Modifier.tvSkipChildFocus()
                             )
@@ -468,38 +466,40 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                                             context
                                         )
                                         FitMode.FIT -> LanguageManager.t(
-                                            "Sığdır (şerit olabilir)",
-                                            "Fit (may letterbox)",
+                                            "Sığdır",
+                                            "Fit",
                                             context
                                         )
                                         FitMode.STRETCH -> LanguageManager.t(
-                                            "Esnet (oran bozulabilir)",
-                                            "Stretch (may distort)",
+                                            "Esnet",
+                                            "Stretch",
                                             context
                                         )
                                     }
                                 )
-                                Text(
-                                    when (mode) {
-                                        FitMode.FILL -> LanguageManager.t(
-                                            "Ekranı tamamen kaplar; fazla kenarlar kırpılır",
-                                            "Covers the screen; edges may be cropped",
-                                            context
-                                        )
-                                        FitMode.FIT -> LanguageManager.t(
-                                            "Tüm görsel görünür; kenarlarda şerit olabilir",
-                                            "Whole image visible; bars may appear",
-                                            context
-                                        )
-                                        FitMode.STRETCH -> LanguageManager.t(
-                                            "Görseli zorla ekran boyutuna çeker",
-                                            "Forces image to screen size",
-                                            context
-                                        )
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                if (selected) {
+                                    Text(
+                                        when (mode) {
+                                            FitMode.FILL -> LanguageManager.t(
+                                                "Ekranı tamamen kaplar; fazla kenarlar kırpılır",
+                                                "Covers the screen; edges may be cropped",
+                                                context
+                                            )
+                                            FitMode.FIT -> LanguageManager.t(
+                                                "Tüm görsel görünür; kenarlarda şerit olabilir",
+                                                "Whole image visible; bars may appear",
+                                                context
+                                            )
+                                            FitMode.STRETCH -> LanguageManager.t(
+                                                "Görseli zorla ekran boyutuna çeker",
+                                                "Forces image to screen size",
+                                                context
+                                            )
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
@@ -617,16 +617,21 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                     Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        LanguageManager.t(
-                            "Yalnız «Ana ekran» seçiliyse kilit değişmemeli. " +
-                                "Bazı telefonlarda (MIUI) bunun için aşağıdaki kilit albümünü ayrı seçin.",
-                            "With Home only, lock should stay. On some phones (MIUI) also set a separate lock album below.",
-                            context
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    SettingsHelpSection(
+                        titleTr = "Hedef ipucu",
+                        titleEn = "Target tip"
+                    ) {
+                        Text(
+                            LanguageManager.t(
+                                "Yalnız «Ana ekran» seçiliyse kilit değişmemeli. " +
+                                    "Bazı telefonlarda (MIUI) aşağıdaki kilit albümünü ayrı seçin.",
+                                "With Home only, lock should stay. On some phones (MIUI) also set a separate lock album below.",
+                                context
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     WallpaperTarget.entries.forEach { t ->
                         TvFocusRow(onClick = {
                             settings.setTarget(t)
@@ -676,17 +681,6 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                             .isIgnoringBatteryOptimizations(context)
                     }
                     Text(
-                        LanguageManager.t(
-                            "Zamanlayıcı ve klasör izleme için pil kısıtlarını gevşetin. " +
-                                "Xiaomi / Huawei / Oppo’da «otomatik başlat» da gerekir.",
-                            "Relax battery limits for the timer and folder watch. " +
-                                "On Xiaomi / Huawei / Oppo also allow autostart.",
-                            context
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
                         if (batteryOk) {
                             LanguageManager.t(
                                 "Durum: pil optimizasyonu kapalı (iyi)",
@@ -707,6 +701,22 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                             MaterialTheme.colorScheme.error
                         }
                     )
+                    SettingsHelpSection(
+                        titleTr = "Neden gerekli?",
+                        titleEn = "Why needed?"
+                    ) {
+                        Text(
+                            LanguageManager.t(
+                                "Zamanlayıcı ve klasör izleme için pil kısıtlarını gevşetin. " +
+                                    "Xiaomi / Huawei / Oppo’da «otomatik başlat» da gerekir.",
+                                "Relax battery limits for the timer and folder watch. " +
+                                    "On Xiaomi / Huawei / Oppo also allow autostart.",
+                                context
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     TvActionButton(
                         onClick = {
                             com.makay.wallpaper.util.BatteryOptimizationHelper

@@ -1,7 +1,6 @@
 package com.makay.wallpaper.ui
 
 import android.content.Context
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,15 +50,11 @@ fun fitHowToSteps(): List<HowToStep> = listOf(
 
 @Composable
 fun FitHowToGuideCard(context: Context) {
-    Column(
-        Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    SettingsHelpSection(
+        titleTr = "Nasıl kullanılır",
+        titleEn = "How to use",
+        initiallyExpanded = false
     ) {
-        Text(
-            LanguageManager.t("Nasıl kullanılır", "How to use", context),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
         fitHowToSteps().forEachIndexed { index, step ->
             Row(Modifier.fillMaxWidth()) {
                 Text(

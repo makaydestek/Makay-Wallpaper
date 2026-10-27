@@ -10,6 +10,8 @@ import com.makay.wallpaper.domain.model.DisplayFitSettings
 import com.makay.wallpaper.domain.model.FitMode
 import com.makay.wallpaper.domain.model.GestureSettings
 import com.makay.wallpaper.domain.model.ImageEffects
+import com.makay.wallpaper.domain.model.IntervalUnit
+import com.makay.wallpaper.domain.model.PlayOrder
 import com.makay.wallpaper.domain.model.ResolutionSource
 import com.makay.wallpaper.domain.model.TimerSettings
 import com.makay.wallpaper.domain.model.WallpaperTarget
@@ -66,9 +68,67 @@ class WallpaperSettingsRepository private constructor(context: Context) {
     private val _lastChangeAt = MutableStateFlow(prefs.getLong(KEY_LAST_CHANGE, 0L))
     val lastChangeAt: StateFlow<Long> = _lastChangeAt.asStateFlow()
 
+    /** Ana sayfada ayrı Zamanlayıcı menü öğesini göster (varsayılan kapalı — Albümler’den yönetilir). */
+    private val _showTimerOnHome = MutableStateFlow(prefs.getBoolean(KEY_SHOW_TIMER_HOME, false))
+    val showTimerOnHome: StateFlow<Boolean> = _showTimerOnHome.asStateFlow()
+
+    /** Rastgele shuffle kuyruğu — albüm bitene kadar aynı görsel tekrarlanmaz. */
+    @Volatile private var shuffleAlbumId: String? = null
+    private val shuffleQueue = ArrayDeque<Int>()
+    private val shuffleLock = Any()
+
     fun setTimer(settings: TimerSettings) {
-        prefs.edit().putString(KEY_TIMER, gson.toJson(settings)).apply()
-        _timer.value = settings
+        val normalized = settings.copy(
+            random = settings.effectivePlayOrder() == PlayOrder.RANDOM,
+            playOrder = settings.effectivePlayOrder()
+        )
+        prefs.edit().putString(KEY_TIMER, gson.toJson(normalized)).apply()
+        _timer.value = normalized
+        setRandom(normalized.playOrder == PlayOrder.RANDOM)
+        if (normalized.playOrder != PlayOrder.RANDOM) {
+            clearShuffleQueue()
+        }
+    }
+
+    fun setShowTimerOnHome(show: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_TIMER_HOME, show).apply()
+        _showTimerOnHome.value = show
+    }
+
+    fun clearShuffleQueue() {
+        synchronized(shuffleLock) {
+            shuffleQueue.clear()
+            shuffleAlbumId = null
+        }
+    }
+
+    /**
+     * Karışık sırada sonraki indeks. Liste bitince yeniden karıştırılır;
+     * mümkünse mevcut indeks peş peşe seçilmez.
+     */
+    fun nextShuffledIndex(albumId: String, size: Int, currentIndex: Int): Int {
+        if (size <= 0) return 0
+        if (size == 1) return 0
+        synchronized(shuffleLock) {
+            if (shuffleAlbumId != albumId || shuffleQueue.isEmpty()) {
+                shuffleAlbumId = albumId
+                val indices = (0 until size).toMutableList()
+                indices.shuffle()
+                // Mevcut görseli hemen başa koyma
+                if (indices.first() == currentIndex && indices.size > 1) {
+                    indices.removeAt(0)
+                    indices.add(currentIndex)
+                }
+                shuffleQueue.clear()
+                shuffleQueue.addAll(indices)
+            }
+            var next = shuffleQueue.removeFirst()
+            if (next == currentIndex && shuffleQueue.isNotEmpty()) {
+                shuffleQueue.addLast(next)
+                next = shuffleQueue.removeFirst()
+            }
+            return next.coerceIn(0, size - 1)
+        }
     }
 
     fun setTriggers(triggers: ChangeTriggers) {
@@ -82,6 +142,7 @@ class WallpaperSettingsRepository private constructor(context: Context) {
     }
 
     fun setActiveAlbumId(id: String?) {
+        if (id != _activeAlbumId.value) clearShuffleQueue()
         prefs.edit().putString(KEY_ALBUM, id).apply()
         _activeAlbumId.value = id
     }
@@ -206,8 +267,25 @@ class WallpaperSettingsRepository private constructor(context: Context) {
 
     private fun loadTimer(): TimerSettings {
         val json = prefs.getString(KEY_TIMER, null) ?: return TimerSettings()
-        return runCatching { gson.fromJson(json, TimerSettings::class.java) }
-            .getOrDefault(TimerSettings())
+        return runCatching {
+            val obj = gson.fromJson(json, com.google.gson.JsonObject::class.java)
+            val enabled = obj.get("enabled")?.asBoolean ?: false
+            val intervalValue = obj.get("intervalValue")?.asInt ?: 30
+            val unit = obj.get("unit")?.asString
+                ?.let { runCatching { IntervalUnit.valueOf(it) }.getOrNull() }
+                ?: IntervalUnit.MINUTES
+            val legacyRandom = obj.get("random")?.asBoolean ?: false
+            val playOrder = obj.get("playOrder")?.asString
+                ?.let { runCatching { PlayOrder.valueOf(it) }.getOrNull() }
+                ?: if (legacyRandom) PlayOrder.RANDOM else PlayOrder.SEQUENTIAL
+            TimerSettings(
+                enabled = enabled,
+                intervalValue = intervalValue,
+                unit = unit,
+                random = playOrder == PlayOrder.RANDOM,
+                playOrder = playOrder
+            )
+        }.getOrDefault(TimerSettings())
     }
 
     private fun loadTriggers(): ChangeTriggers {
@@ -276,6 +354,7 @@ class WallpaperSettingsRepository private constructor(context: Context) {
         private const val KEY_LOCK_ALBUM = "lock_album"
         private const val KEY_LOCK_INDEX = "lock_index"
         private const val KEY_RANDOM = "random"
+        private const val KEY_SHOW_TIMER_HOME = "show_timer_on_home"
         private const val KEY_TARGET = "target"
         private const val KEY_DISPLAY_FIT = "display_fit"
         private const val KEY_FIT_MIGRATED_V2 = "fit_migrated_v2"

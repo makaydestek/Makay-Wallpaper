@@ -64,6 +64,7 @@ fun HomeScreen(
     val albums = remember { AlbumRepository.getInstance(context) }
     val scope = rememberCoroutineScope()
     val timer by settings.timer.collectAsState()
+    val showTimerOnHome by settings.showTimerOnHome.collectAsState()
     val activeAlbumId by settings.activeAlbumId.collectAsState()
     val activeIndex by settings.activeIndex.collectAsState()
     val lockAlbumId by settings.lockAlbumId.collectAsState()
@@ -256,7 +257,9 @@ fun HomeScreen(
             }
 
             NavButton(LanguageManager.t("Albümler", "Albums", context), onNavigateAlbums)
-            NavButton(LanguageManager.t("Zamanlayıcı", "Timer", context), onNavigateTimer)
+            if (showTimerOnHome) {
+                NavButton(LanguageManager.t("Zamanlayıcı", "Timer", context), onNavigateTimer)
+            }
             NavButton(LanguageManager.t("Programlar", "Schedules", context), onNavigateSchedules)
             NavButton(LanguageManager.t("Ayarlar", "Settings", context), onNavigateSettings)
 

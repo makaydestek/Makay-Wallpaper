@@ -5,7 +5,9 @@ data class WallpaperImage(
     val cropLeft: Float = 0f,
     val cropTop: Float = 0f,
     val cropRight: Float = 1f,
-    val cropBottom: Float = 1f
+    val cropBottom: Float = 1f,
+    /** Albüme eklenme zamanı (sıralama için). 0 = bilinmiyor → liste indeksi kullanılır. */
+    val addedAt: Long = 0L
 ) {
     fun cropRectNormalized(): android.graphics.RectF =
         android.graphics.RectF(
@@ -31,12 +33,29 @@ enum class IntervalUnit {
     SECONDS, MINUTES, HOURS, DAYS
 }
 
+/** Otomatik değişimde görsel sırası. */
+enum class PlayOrder {
+    /** Albüm listesi sırası */
+    SEQUENTIAL,
+    /** Karışık sıra (tekrarsız shuffle) */
+    RANDOM,
+    /** En yeniden en eskiye */
+    NEWEST_FIRST,
+    /** En eskiden en yeniye */
+    OLDEST_FIRST
+}
+
 data class TimerSettings(
     val enabled: Boolean = false,
     val intervalValue: Int = 30,
     val unit: IntervalUnit = IntervalUnit.MINUTES,
-    val random: Boolean = false
+    /** Eski JSON uyumluluğu — [playOrder] tercih edilir */
+    val random: Boolean = false,
+    val playOrder: PlayOrder = PlayOrder.SEQUENTIAL
 ) {
+    fun effectivePlayOrder(): PlayOrder =
+        if (playOrder == PlayOrder.SEQUENTIAL && random) PlayOrder.RANDOM else playOrder
+
     fun intervalMillis(): Long {
         val v = intervalValue.coerceAtLeast(1).toLong()
         return when (unit) {

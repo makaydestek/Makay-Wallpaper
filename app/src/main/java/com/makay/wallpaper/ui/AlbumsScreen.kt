@@ -94,6 +94,11 @@ fun AlbumsScreen(
                 onCompleted = { /* ana akış zaten uyguladı */ }
             )
 
+            TimerControls(
+                compact = true,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+
             Text(
                 LanguageManager.t("Kayıtlı albümler", "Saved albums", context),
                 fontWeight = FontWeight.SemiBold,
@@ -110,7 +115,8 @@ fun AlbumsScreen(
 
             LazyColumn(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
+                    .fillMaxWidth()
                     .padding(top = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {

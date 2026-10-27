@@ -7,12 +7,12 @@ import android.net.Uri
 import com.makay.wallpaper.data.AlbumRepository
 import com.makay.wallpaper.data.WallpaperSettingsRepository
 import com.makay.wallpaper.domain.model.GestureAction
+import com.makay.wallpaper.domain.model.PlayOrder
 import com.makay.wallpaper.domain.model.WallpaperImage
 import com.makay.wallpaper.domain.model.WallpaperTarget
 import com.makay.wallpaper.util.LiveWallpaperHelper
 import com.makay.wallpaper.widget.WallpaperWidgetProvider
 import java.util.Calendar
-import kotlin.random.Random
 
 /**
  * Merkezi duvar kağıdı kontrolü — UI, worker, widget, receiver ve live wallpaper kullanır.
@@ -198,7 +198,7 @@ object WallpaperController {
     }
 
     /**
-     * @param sequential true ise (UI / jest) rastgele ayarı yok sayılır.
+     * @param sequential true ise (UI / jest) playOrder yok sayılır; albüm sırasıyla ilerler.
      */
     fun next(
         context: Context,
@@ -208,16 +208,31 @@ object WallpaperController {
         if (isLandscapePaused(context)) return false
         if (allowDayPart) applyDayPartIfNeeded(context)
         val settings = WallpaperSettingsRepository.getInstance(context)
-        // Rastgele yalnız AKTİF albüm içinde — başka klasöre geçmez
-        if (!sequential && (settings.random.value || settings.timer.value.random)) {
-            return random(context, allowDayPart = false)
+        val order = if (sequential) {
+            PlayOrder.SEQUENTIAL
+        } else {
+            settings.timer.value.effectivePlayOrder().let { o ->
+                // Eski global random bayrağı
+                if (o == PlayOrder.SEQUENTIAL && settings.random.value) PlayOrder.RANDOM else o
+            }
         }
-        return advance(context, +1)
+        return when (order) {
+            PlayOrder.RANDOM -> random(context, allowDayPart = false)
+            PlayOrder.NEWEST_FIRST, PlayOrder.OLDEST_FIRST ->
+                advanceOrdered(context, +1, order)
+            PlayOrder.SEQUENTIAL -> advance(context, +1)
+        }
     }
 
     fun prev(context: Context): Boolean {
         if (isLandscapePaused(context)) return false
-        return advance(context, -1)
+        val settings = WallpaperSettingsRepository.getInstance(context)
+        val order = settings.timer.value.effectivePlayOrder()
+        return when (order) {
+            PlayOrder.NEWEST_FIRST, PlayOrder.OLDEST_FIRST ->
+                advanceOrdered(context, -1, order)
+            else -> advance(context, -1)
+        }
     }
 
     fun random(context: Context, allowDayPart: Boolean = false): Boolean {
@@ -228,11 +243,21 @@ object WallpaperController {
         val albumId = settings.activeAlbumId.value ?: return false
         val album = albums.getById(albumId) ?: return false
         if (album.images.isEmpty()) return false
-        settings.setActiveIndex(Random.nextInt(album.images.size))
+        val next = settings.nextShuffledIndex(
+            albumId,
+            album.images.size,
+            settings.activeIndex.value
+        )
+        settings.setActiveIndex(next)
         if (settings.lockAlbumId.value != null) {
             val lockAlbum = albums.getById(settings.lockAlbumId.value!!)
             if (lockAlbum != null && lockAlbum.images.isNotEmpty()) {
-                settings.setLockIndex(Random.nextInt(lockAlbum.images.size))
+                val li = settings.nextShuffledIndex(
+                    "lock:${settings.lockAlbumId.value}",
+                    lockAlbum.images.size,
+                    settings.lockIndex.value
+                )
+                settings.setLockIndex(li)
             }
         }
         return applyCurrent(context, allowDayPart = false)
@@ -324,6 +349,47 @@ object WallpaperController {
             }
         }
         return applyCurrent(context)
+    }
+
+    /** Tarih / eklenme sırasına göre ilerle. */
+    private fun advanceOrdered(context: Context, delta: Int, order: PlayOrder): Boolean {
+        synchronized(indexLock) {
+            val settings = WallpaperSettingsRepository.getInstance(context)
+            val albums = AlbumRepository.getInstance(context)
+            val albumId = settings.activeAlbumId.value ?: return false
+            val album = albums.getById(albumId) ?: return false
+            if (album.images.isEmpty()) return false
+            val ordered = orderedIndices(album.images, order)
+            val current = settings.activeIndex.value.coerceIn(0, album.images.lastIndex)
+            val pos = ordered.indexOf(current).let { if (it < 0) 0 else it }
+            val size = ordered.size
+            val nextPos = ((pos + delta) % size + size) % size
+            settings.setActiveIndex(ordered[nextPos])
+            if (settings.lockAlbumId.value != null) {
+                val lockAlbum = albums.getById(settings.lockAlbumId.value!!)
+                if (lockAlbum != null && lockAlbum.images.isNotEmpty()) {
+                    val lockOrdered = orderedIndices(lockAlbum.images, order)
+                    val lc = settings.lockIndex.value.coerceIn(0, lockAlbum.images.lastIndex)
+                    val lp = lockOrdered.indexOf(lc).let { if (it < 0) 0 else it }
+                    val ls = lockOrdered.size
+                    val nlp = ((lp + delta) % ls + ls) % ls
+                    settings.setLockIndex(lockOrdered[nlp])
+                }
+            }
+        }
+        return applyCurrent(context)
+    }
+
+    private fun orderedIndices(images: List<WallpaperImage>, order: PlayOrder): List<Int> {
+        val indexed = images.mapIndexed { i, img ->
+            val sortKey = if (img.addedAt > 0L) img.addedAt else i.toLong()
+            i to sortKey
+        }
+        return when (order) {
+            PlayOrder.NEWEST_FIRST -> indexed.sortedByDescending { it.second }.map { it.first }
+            PlayOrder.OLDEST_FIRST -> indexed.sortedBy { it.second }.map { it.first }
+            else -> images.indices.toList()
+        }
     }
 
     private fun switchAlbum(context: Context, delta: Int): Boolean {
