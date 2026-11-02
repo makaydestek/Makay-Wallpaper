@@ -65,8 +65,6 @@ object WallpaperController {
         // Jestler açıkken canlı WP varsa ASLA setBitmap (HOME) — jestleri öldürür
         // Jestler açık + canlı yok: yine de statik basma; kullanıcı canlıyı yeni ayarladıysa ezilmesin
         if (gesturesOn && live) {
-            settings.markChangedNow()
-            notifyChanged(context)
             // Kilit ayrı albüm ise yalnız kilidi statik güncelle (ana canlı kalır)
             if (lockSeparate || target == WallpaperTarget.LOCK) {
                 val lock = currentImage(context, forLock = true) ?: home
@@ -78,6 +76,7 @@ object WallpaperController {
                     settings.setLastLockUri(lock.uri)
                 }
             }
+            onWallpaperApplied(context)
             return true
         }
 
@@ -110,8 +109,7 @@ object WallpaperController {
                     settings.setLastLockUri(home.uri)
                 }
             }
-            settings.markChangedNow()
-            notifyChanged(context)
+            if (ok) onWallpaperApplied(context)
             return ok
         }
 
@@ -120,11 +118,15 @@ object WallpaperController {
             lockSeparate -> applyWithSeparateLock(context, home, target)
             else -> applyWithSharedAlbum(context, home, target)
         }
-        if (ok) {
-            settings.markChangedNow()
-            notifyChanged(context)
-        }
+        if (ok) onWallpaperApplied(context)
         return ok
+    }
+
+    /** Son değişim zamanı + bildirim + zamanlayıcıyı baştan planla (manuel jest dahil). */
+    private fun onWallpaperApplied(context: Context) {
+        WallpaperSettingsRepository.getInstance(context).markChangedNow()
+        notifyChanged(context)
+        WallpaperScheduler.rescheduleTimerAfterChange(context)
     }
 
     private fun applyWithSeparateLock(

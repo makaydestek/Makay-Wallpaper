@@ -71,22 +71,13 @@ object WallpaperScheduler {
         cancelExactTimerAlarm(app)
     }
 
-    /** Worker zinciri: kısa aralıkta bir değişim sonrası yeniden planla. */
+    /**
+     * Her duvar kağıdı değişiminden sonra aralığı baştan planla
+     * (Wallpaper Changer: manuel çift dokunuş / sonraki de süreyi sıfırlar).
+     * Kısa aralık → AlarmManager + OneTime; uzun aralık → periyodik WorkManager.
+     */
     fun rescheduleTimerAfterChange(context: Context) {
-        val timer = WallpaperSettingsRepository.getInstance(context).timer.value
-        if (!timer.enabled) return
-        val interval = timer.intervalMillis().coerceAtLeast(5_000L)
-        if (interval >= WORK_MIN_PERIODIC_MS) return
-        scheduleExactTimerAlarm(context.applicationContext, interval)
-        val one = OneTimeWorkRequestBuilder<WallpaperChangeWorker>()
-            .setInitialDelay(interval, TimeUnit.MILLISECONDS)
-            .addTag(TIMER_CHAIN_UNIQUE)
-            .build()
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            TIMER_CHAIN_UNIQUE,
-            ExistingWorkPolicy.REPLACE,
-            one
-        )
+        scheduleTimer(context)
     }
 
     fun scheduleAllAlarms(context: Context) {

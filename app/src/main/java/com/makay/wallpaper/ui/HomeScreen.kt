@@ -1,5 +1,6 @@
 package com.makay.wallpaper.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +31,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -169,7 +171,8 @@ fun HomeScreen(
                     Text(
                         album?.name ?: LanguageManager.t("Albüm seçilmedi", "No album selected", context),
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clickable(onClick = onNavigateAlbums)
                     )
                     if (current != null && album != null) {
                         Text(
@@ -183,10 +186,16 @@ fun HomeScreen(
                         )
                         AsyncImage(
                             model = current.uri,
-                            contentDescription = null,
+                            contentDescription = LanguageManager.t(
+                                "Albümlere git",
+                                "Open albums",
+                                context
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .aspectRatio(16f / 10f),
+                                .aspectRatio(16f / 10f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable(onClick = onNavigateAlbums),
                             contentScale = ContentScale.Crop
                         )
                     } else {
