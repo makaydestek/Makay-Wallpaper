@@ -818,8 +818,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                             context
                         )
                         else -> LanguageManager.t(
-                            "Güncelleme kontrol et",
-                            "Check for updates",
+                            "🔄 Güncelleme kontrol et",
+                            "🔄 Check for updates",
                             context
                         )
                     },
@@ -851,28 +851,21 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        AppBrandLogo(size = 72.dp, corner = 16.dp)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "Makay Wallpaper",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = LanguageManager.t(
-                                "Sürüm: ${BuildConfig.VERSION_NAME}",
-                                "Version: ${BuildConfig.VERSION_NAME}",
-                                context
-                            ),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        text = "Makay Wallpaper",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = LanguageManager.t(
+                            "Sürüm: ${BuildConfig.VERSION_NAME}",
+                            "Version: ${BuildConfig.VERSION_NAME}",
+                            context
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                     HorizontalDivider()
                     Spacer(modifier = Modifier.height(12.dp))

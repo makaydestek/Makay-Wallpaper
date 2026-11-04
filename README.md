@@ -7,6 +7,7 @@
 - Açılışta otomatik kontrol → bildirim + diyalog → SHA-256 + imza → kurulum
 - Ayarlar → **Güncellemeleri Denetle** (manuel)
 - Yayın: `APK-Hazirla.bat` (sürüm artar, `APK\MakayWallpaper_vX.Y.Z.apk` üretir, release yükler, eski sürümleri siler)
+- Giriş bir kez: `Gh-Giris.bat`. Eski `GitHub-Release.bat` arşivdedir (`tools/archive`); yayın yapmaz.
 
 ---
 

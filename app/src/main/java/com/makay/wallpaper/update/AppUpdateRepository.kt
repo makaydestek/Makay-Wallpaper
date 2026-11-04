@@ -82,8 +82,13 @@ class AppUpdateRepository(context: Context) {
         }
 
         val expectedSha = normalizeUpdateSha(resolveExpectedSha256(release, apkName))
-        // SHA yoksa güncellemeyi hiç sunma (indir/kur diyaloğu açılmaz).
-        if (expectedSha == null) return null
+        // Yeni sürüm var ama özet yoksa "güncel" gibi sessizce geçme.
+        if (expectedSha == null) {
+            error(
+                "Yeni sürüm $versionName bulundu fakat SHA-256 özeti okunamadı. " +
+                    "Release’te .apk.sha256 asset’ini kontrol edin."
+            )
+        }
 
         return AvailableUpdate(
             tag = tag,

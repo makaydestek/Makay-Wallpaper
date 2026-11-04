@@ -1,4 +1,12 @@
 @echo off
+echo.
+echo [BILGI] GitHub-Release.bat arsivdedir ve yayin yapmaz.
+echo         Yayin: proje kokundeki APK-Hazirla.bat
+echo         Giris: proje kokundeki Gh-Giris.bat
+echo.
+pause
+exit /b 1
+
 setlocal EnableExtensions EnableDelayedExpansion
 title Makay Wallpaper - GitHub Release
 cd /d "%~dp0"
