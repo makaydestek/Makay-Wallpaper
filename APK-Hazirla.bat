@@ -73,6 +73,11 @@ if errorlevel 1 (
     echo [HATA] git bulunamadi.  winget install Git.Git
     goto :END_FAIL
 )
+if not exist "%~dp0tool\git_commit.cmd" (
+    echo [HATA] tool\git_commit.cmd yok - yayin kimligi kurulamadi.
+    goto :END_FAIL
+)
+call "%~dp0tool\git_identity.cmd"
 where gh >nul 2>&1
 if errorlevel 1 (
     echo [HATA] GitHub CLI ^(gh^) bulunamadi.
@@ -111,10 +116,10 @@ REM ============================================================
 git add -A >nul 2>&1
 git diff --cached --quiet >nul 2>&1
 if errorlevel 1 (
-    git commit -m "MakayWallpaper v!VERSION!: birikimli guncelleme" >nul 2>&1
+    call "%~dp0tool\git_commit.cmd" -m "MakayWallpaper v!VERSION!: birikimli guncelleme" >nul 2>&1
     if errorlevel 1 (
         echo [HATA] Commit basarisiz.
-        git commit -m "MakayWallpaper v!VERSION!: birikimli guncelleme"
+        call "%~dp0tool\git_commit.cmd" -m "MakayWallpaper v!VERSION!: birikimli guncelleme"
         goto :END_FAIL
     )
     for /f "delims=" %%H in ('git rev-parse --short HEAD 2^>nul') do set "C1=%%H"
@@ -219,10 +224,10 @@ REM ============================================================
 git add "VERSION.txt" >nul 2>&1
 git diff --cached --quiet -- "VERSION.txt" >nul 2>&1
 if errorlevel 1 (
-    git commit -m "Yayin: MakayWallpaper v!VERSION!" -- "VERSION.txt" >nul 2>&1
+    call "%~dp0tool\git_commit.cmd" -m "Yayin: MakayWallpaper v!VERSION!" -- "VERSION.txt" >nul 2>&1
     if errorlevel 1 (
         echo [HATA] Surum commit'i basarisiz.
-        git commit -m "Yayin: MakayWallpaper v!VERSION!" -- "VERSION.txt"
+        call "%~dp0tool\git_commit.cmd" -m "Yayin: MakayWallpaper v!VERSION!" -- "VERSION.txt"
         goto :END_FAIL
     )
     for /f "delims=" %%H in ('git rev-parse --short HEAD 2^>nul') do set "C2=%%H"

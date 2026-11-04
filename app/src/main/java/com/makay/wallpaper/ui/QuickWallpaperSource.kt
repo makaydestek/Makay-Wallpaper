@@ -170,8 +170,8 @@ fun QuickWallpaperSourceButtons(
                             busyFound = found
                             busyTotal = total
                             busyMessage = LanguageManager.t(
-                                "Klasör taranıyor… $found/$total",
-                                "Scanning folder… $found/$total",
+                                if (total >= 0) "Klasör taranıyor… $found/$total" else "Klasör taranıyor… $found görsel bulundu",
+                                if (total >= 0) "Scanning folder… $found/$total" else "Scanning folder… $found images found",
                                 context
                             )
                         }
@@ -380,8 +380,8 @@ fun rememberAlbumPickLaunchers(
                         mainHandler.post {
                             onBusy(
                                 LanguageManager.t(
-                                    "Klasör taranıyor… $found/$total",
-                                    "Scanning folder… $found/$total",
+                                    if (total >= 0) "Klasör taranıyor… $found/$total" else "Klasör taranıyor… $found görsel bulundu",
+                                    if (total >= 0) "Scanning folder… $found/$total" else "Scanning folder… $found images found",
                                     context
                                 )
                             )

@@ -95,12 +95,7 @@ object WallpaperScheduler {
         val triggerAt = nextTriggerMillis(schedule) ?: return
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pi = schedulePendingIntent(context, schedule.id)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
-        } else {
-            @Suppress("DEPRECATION")
-            am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi)
-        }
+        setAlarmWithFallback(am, triggerAt, pi)
     }
 
     fun cancelScheduleAlarm(context: Context, scheduleId: String) {
@@ -139,11 +134,24 @@ object WallpaperScheduler {
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val trigger = System.currentTimeMillis() + intervalMs
         val pi = timerPendingIntent(context)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pi)
-        } else {
-            @Suppress("DEPRECATION")
-            am.setExact(AlarmManager.RTC_WAKEUP, trigger, pi)
+        setAlarmWithFallback(am, trigger, pi)
+    }
+
+    /** Exact alarm access can be revoked by the user or unavailable on some Android versions. */
+    private fun setAlarmWithFallback(am: AlarmManager, triggerAt: Long, pi: PendingIntent) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+            } else {
+                @Suppress("DEPRECATION")
+                am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+            }
+        } catch (_: SecurityException) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+            } else {
+                am.set(AlarmManager.RTC_WAKEUP, triggerAt, pi)
+            }
         }
     }
 

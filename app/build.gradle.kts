@@ -95,8 +95,8 @@ android {
     }
 
     lint {
-        checkReleaseBuilds = false
-        abortOnError = false
+        checkReleaseBuilds = true
+        abortOnError = true
     }
 
     packaging {
@@ -246,6 +246,11 @@ tasks.register("publishDebugApk") {
 
 afterEvaluate {
     tasks.named("assembleRelease").configure {
+        doFirst {
+            check(hasReleaseKey) {
+                "Release APK icin RELEASE_STORE_FILE ve imza bilgileri local.properties icinde tanimlanmali."
+            }
+        }
         finalizedBy("publishReleaseApk")
     }
     tasks.named("assembleDebug").configure {

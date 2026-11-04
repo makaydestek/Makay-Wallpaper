@@ -14,18 +14,22 @@ class FolderScanWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        runCatching {
+        try {
             val albums = AlbumRepository.getInstance(applicationContext)
             albums.getAll()
                 .filter { it.watchFolder && !it.folderPath.isNullOrBlank() }
                 .forEach { album ->
-                    val uris = FolderImageScanner.scan(applicationContext, album.folderPath!!)
-                    // Boş sonuç tarama hatası olabilir — albümü silme
-                    if (uris.isNotEmpty()) {
-                        albums.syncFolderImages(album.id, uris)
-                    }
+                    val scan = FolderImageScanner.scanWithStatus(
+                        applicationContext,
+                        album.folderPath!!
+                    )
+                    if (!scan.completed) throw IllegalStateException("Folder scan failed")
+                    // Başarılı boş tarama, klasördeki son görsellerin silindiği anlamına gelebilir.
+                    albums.syncFolderImages(album.id, scan.images)
                 }
+            Result.success()
+        } catch (_: Exception) {
+            Result.retry()
         }
-        Result.success()
     }
 }

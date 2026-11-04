@@ -15,17 +15,20 @@ class WallpaperChangeWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        runCatching {
+        try {
             val timer = WallpaperSettingsRepository.getInstance(applicationContext).timer.value
             if (!timer.enabled) {
                 WallpaperScheduler.cancelTimer(applicationContext)
-                return@runCatching
+                return@withContext Result.success()
             }
             // Zamanlayıcı: yalnız aktif albüm; gün-saati albüm geçişi worker'da.
             // next → applyCurrent zaten aralığı sıfırlar; yedek olarak yeniden planla.
+            // false can be an intentional no-op (for example, landscape pause).
             WallpaperController.next(applicationContext, allowDayPart = true)
             WallpaperScheduler.rescheduleTimerAfterChange(applicationContext)
+            Result.success()
+        } catch (e: Exception) {
+            Result.retry()
         }
-        Result.success()
     }
 }
