@@ -239,7 +239,7 @@ fun HomeScreen(
                         ) { Text(LanguageManager.t("Önceki", "Prev", context)) }
                         TvActionButton(
                             onClick = {
-                                runNav { WallpaperController.next(context, sequential = true) }
+                                runNav { WallpaperController.next(context) }
                             },
                             modifier = Modifier.weight(1f).height(48.dp),
                             idle = MaterialTheme.colorScheme.primary

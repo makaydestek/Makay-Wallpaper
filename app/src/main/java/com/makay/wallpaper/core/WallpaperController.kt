@@ -200,23 +200,17 @@ object WallpaperController {
     }
 
     /**
-     * @param sequential true ise (UI / jest) playOrder yok sayılır; albüm sırasıyla ilerler.
-     * Zamanlayıcı / tetikleyicilerde sıra yalnızca timer.playOrder ile belirlenir.
+     * Sonraki görsele geçer — sıra [resolvedPlayOrder] ile (rastgele / sıralı / tarih).
+     * Zamanlayıcı, jest (çift dokunuş) ve UI aynı playOrder’ı kullanır.
      */
     fun next(
         context: Context,
-        sequential: Boolean = false,
         allowDayPart: Boolean = false
     ): Boolean {
         if (isLandscapePaused(context)) return false
         if (allowDayPart) applyDayPartIfNeeded(context)
         val settings = WallpaperSettingsRepository.getInstance(context)
-        val order = if (sequential) {
-            PlayOrder.SEQUENTIAL
-        } else {
-            settings.resolvedPlayOrder()
-        }
-        return when (order) {
+        return when (val order = settings.resolvedPlayOrder()) {
             PlayOrder.RANDOM -> random(context, allowDayPart = false)
             PlayOrder.NEWEST_FIRST, PlayOrder.OLDEST_FIRST ->
                 advanceOrdered(context, +1, order)
@@ -294,7 +288,7 @@ object WallpaperController {
             lastGestureAt = now
         }
         return when (action) {
-            GestureAction.NEXT -> next(context, sequential = true)
+            GestureAction.NEXT -> next(context)
             GestureAction.PREV -> prev(context)
             GestureAction.NEXT_ALBUM -> nextAlbum(context)
             GestureAction.PREV_ALBUM -> prevAlbum(context)
@@ -419,8 +413,10 @@ object WallpaperController {
     private fun switchAlbum(context: Context, delta: Int): Boolean {
         val albums = AlbumRepository.getInstance(context).getAll()
         if (albums.isEmpty()) return false
-        // Tek albümde «sonraki albüm» 1. fotoğrafa sıçramasın — sıradaki görsel
-        if (albums.size == 1) return advance(context, if (delta >= 0) 1 else -1)
+        // Tek albümde «sonraki albüm» sıçramasın — playOrder’a göre sonraki/önceki görsel
+        if (albums.size == 1) {
+            return if (delta >= 0) next(context) else prev(context)
+        }
         val settings = WallpaperSettingsRepository.getInstance(context)
         val currentId = settings.activeAlbumId.value
         val currentIdx = albums.indexOfFirst { it.id == currentId }.let { if (it < 0) 0 else it }
