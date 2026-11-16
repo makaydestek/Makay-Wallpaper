@@ -10,6 +10,7 @@ class ScreenEventReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val action = intent?.action ?: return
         val triggers = WallpaperSettingsRepository.getInstance(context).triggers.value
+        if (WallpaperSettingsRepository.getInstance(context).isQuietHoursNow()) return
         val shouldChange = when (action) {
             Intent.ACTION_SCREEN_ON -> triggers.onScreenOn
             Intent.ACTION_SCREEN_OFF -> triggers.onScreenOff

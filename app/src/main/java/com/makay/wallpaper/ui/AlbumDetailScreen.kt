@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -19,6 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -67,6 +73,9 @@ fun AlbumDetailScreen(
     var scanTotal by remember { mutableIntStateOf(0) }
     var showRename by remember { mutableStateOf(false) }
     var renameValue by remember { mutableStateOf("") }
+    var imageQuery by remember { mutableStateOf("") }
+    var imageFilter by remember { mutableIntStateOf(0) }
+    var imageSort by remember { mutableIntStateOf(0) }
     val mainHandler = remember { Handler(Looper.getMainLooper()) }
 
     Scaffold(
@@ -291,6 +300,71 @@ fun AlbumDetailScreen(
                 )
             }
 
+            OutlinedTextField(
+                value = imageQuery,
+                onValueChange = { imageQuery = it },
+                singleLine = true,
+                label = { Text(LanguageManager.t("Görsellerde ara", "Search images", context)) },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = imageFilter == 0,
+                    onClick = { imageFilter = 0 },
+                    label = { Text(LanguageManager.t("Tümü", "All", context)) }
+                )
+                FilterChip(
+                    selected = imageFilter == 1,
+                    onClick = { imageFilter = 1 },
+                    label = { Text(LanguageManager.t("Favoriler", "Favorites", context)) }
+                )
+                FilterChip(
+                    selected = imageSort == 0,
+                    onClick = { imageSort = 0 },
+                    label = { Text(LanguageManager.t("Albüm sırası", "Album order", context)) }
+                )
+                FilterChip(
+                    selected = imageSort == 1,
+                    onClick = { imageSort = 1 },
+                    label = { Text(LanguageManager.t("En az gösterilen", "Least shown", context)) }
+                )
+            }
+            val visibleImages = remember(album.images, imageQuery, imageFilter, imageSort) {
+                album.images
+                    .filter { imageFilter == 0 || it.favorite }
+                    .filter {
+                        imageQuery.isBlank() || image.uri.contains(imageQuery, ignoreCase = true) ||
+                            imageDisplayName(context, image.uri).contains(imageQuery, ignoreCase = true)
+                    }
+                    .let { list ->
+                        if (imageSort == 1) list.sortedWith(
+                            compareBy<com.makay.wallpaper.domain.model.WallpaperImage> { it.shownCount }
+                                .thenBy { it.lastShownAt }
+                        ) else list
+                    }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = {
+                    scope.launch(Dispatchers.IO) {
+                        val removed = repo.removeDuplicateImages(context, album.id)
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                context,
+                                LanguageManager.t("$removed yinelenen görsel kaldırıldı", "$removed duplicate images removed", context),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                }) { Text(LanguageManager.t("Yinelenenleri bul", "Find duplicates", context)) }
+                Text(
+                    LanguageManager.t("${visibleImages.size} görsel", "${visibleImages.size} images", context),
+                    modifier = Modifier.align(Alignment.CenterVertically),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(110.dp),
                 contentPadding = PaddingValues(bottom = 24.dp),
@@ -298,19 +372,62 @@ fun AlbumDetailScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(album.images, key = { it.uri }) { image ->
+                items(visibleImages, key = { it.uri }) { image ->
                     Card(
-                        onClick = { onOpenCrop(album.id, image.uri) },
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        AsyncImage(
-                            model = image.uri,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(1f),
-                            contentScale = ContentScale.Crop
-                        )
+                        Column {
+                            AsyncImage(
+                                model = image.uri,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(1f)
+                                    .clickable { onOpenCrop(album.id, image.uri) },
+                                contentScale = ContentScale.Crop
+                            )
+                            Text(
+                                LanguageManager.t("Gösterim: ${image.shownCount}", "Shown: ${image.shownCount}", context),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { repo.toggleFavorite(album.id, image.uri) }, modifier = Modifier.weight(1f)) {
+                                    Text(if (image.favorite) "★" else "☆")
+                                }
+                                IconButton(onClick = {
+                                    repo.rotateImage(album.id, image.uri)
+                                    if (WallpaperController.currentImage(context)?.uri == image.uri) {
+                                        WallpaperController.applyCurrent(context)
+                                    }
+                                }, modifier = Modifier.weight(1f)) { Text("↻") }
+                            }
+                            val originalIndex = album.images.indexOfFirst { it.uri == image.uri }
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    enabled = originalIndex > 0 && imageSort == 0,
+                                    onClick = {
+                                        val reordered = album.images.toMutableList()
+                                        java.util.Collections.swap(reordered, originalIndex, originalIndex - 1)
+                                        repo.reorderImages(album.id, reordered.map { it.uri })
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("↑") }
+                                IconButton(
+                                    enabled = originalIndex in 0 until album.images.lastIndex && imageSort == 0,
+                                    onClick = {
+                                        val reordered = album.images.toMutableList()
+                                        java.util.Collections.swap(reordered, originalIndex, originalIndex + 1)
+                                        repo.reorderImages(album.id, reordered.map { it.uri })
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) { Text("↓") }
+                            }
+                            TextButton(
+                                onClick = { repo.removeImage(album.id, image.uri) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text(LanguageManager.t("Albümden kaldır", "Remove", context)) }
+                        }
                     }
                 }
             }
@@ -346,4 +463,14 @@ fun AlbumDetailScreen(
             }
         )
     }
+}
+
+private fun imageDisplayName(context: android.content.Context, imageUri: String): String {
+    val uri = android.net.Uri.parse(imageUri)
+    return runCatching {
+        context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
+            }.orEmpty()
+    }.getOrDefault(uri.lastPathSegment.orEmpty())
 }

@@ -36,6 +36,12 @@ object WallpaperScheduler {
         cancelTimer(app)
         if (!timer.enabled) return
 
+        val settings = WallpaperSettingsRepository.getInstance(app)
+        if (settings.isQuietHoursNow()) {
+            scheduleExactTimerAlarm(app, settings.quietHoursRemainingMillis())
+            return
+        }
+
         val interval = timer.intervalMillis().coerceAtLeast(5_000L)
         val wm = WorkManager.getInstance(app)
 

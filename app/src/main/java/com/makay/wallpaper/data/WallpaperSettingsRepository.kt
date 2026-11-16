@@ -12,6 +12,7 @@ import com.makay.wallpaper.domain.model.GestureSettings
 import com.makay.wallpaper.domain.model.ImageEffects
 import com.makay.wallpaper.domain.model.IntervalUnit
 import com.makay.wallpaper.domain.model.PlayOrder
+import com.makay.wallpaper.domain.model.QuietHoursSettings
 import com.makay.wallpaper.domain.model.ResolutionSource
 import com.makay.wallpaper.domain.model.TimerSettings
 import com.makay.wallpaper.domain.model.WallpaperTarget
@@ -78,6 +79,9 @@ class WallpaperSettingsRepository private constructor(context: Context) {
 
     private val _dayPart = MutableStateFlow(loadDayPart())
     val dayPart: StateFlow<DayPartAlbums> = _dayPart.asStateFlow()
+
+    private val _quietHours = MutableStateFlow(loadQuietHours())
+    val quietHours: StateFlow<QuietHoursSettings> = _quietHours.asStateFlow()
 
     private val _lastChangeAt = MutableStateFlow(prefs.getLong(KEY_LAST_CHANGE, 0L))
     val lastChangeAt: StateFlow<Long> = _lastChangeAt.asStateFlow()
@@ -227,6 +231,31 @@ class WallpaperSettingsRepository private constructor(context: Context) {
         _dayPart.value = settings
     }
 
+    fun setQuietHours(settings: QuietHoursSettings) {
+        val normalized = settings.copy(
+            startMinute = settings.startMinute.coerceIn(0, 1439),
+            endMinute = settings.endMinute.coerceIn(0, 1439)
+        )
+        prefs.edit().putString(KEY_QUIET_HOURS, gson.toJson(normalized)).apply()
+        _quietHours.value = normalized
+    }
+
+    fun isQuietHoursNow(now: Long = System.currentTimeMillis()): Boolean {
+        val calendar = java.util.Calendar.getInstance().apply { timeInMillis = now }
+        val minute = calendar.get(java.util.Calendar.HOUR_OF_DAY) * 60 +
+            calendar.get(java.util.Calendar.MINUTE)
+        return _quietHours.value.contains(minute)
+    }
+
+    fun quietHoursRemainingMillis(now: Long = System.currentTimeMillis()): Long {
+        val calendar = java.util.Calendar.getInstance().apply { timeInMillis = now }
+        val minute = calendar.get(java.util.Calendar.HOUR_OF_DAY) * 60 +
+            calendar.get(java.util.Calendar.MINUTE)
+        val minutes = _quietHours.value.minutesUntilEnd(minute)
+        val remainingSeconds = 60 - calendar.get(java.util.Calendar.SECOND)
+        return (minutes * 60_000L - (60 - remainingSeconds) * 1_000L).coerceAtLeast(1_000L)
+    }
+
     fun markChangedNow() {
         val now = System.currentTimeMillis()
         prefs.edit().putLong(KEY_LAST_CHANGE, now).apply()
@@ -249,6 +278,7 @@ class WallpaperSettingsRepository private constructor(context: Context) {
             "effects" to _effects.value,
             "behavior" to _behavior.value,
             "dayPart" to _dayPart.value,
+            "quietHours" to _quietHours.value,
             "albums" to gson.fromJson(albumsJson, Any::class.java)
         )
         return gson.toJson(map)
@@ -271,13 +301,18 @@ class WallpaperSettingsRepository private constructor(context: Context) {
                 setDisplayFit(gson.fromJson(gson.toJson(it), DisplayFitSettings::class.java))
             }
             root["effects"]?.let {
-                setEffects(gson.fromJson(gson.toJson(it), ImageEffects::class.java))
+                val json = gson.toJsonTree(it).asJsonObject
+                val parsed = gson.fromJson(json, ImageEffects::class.java)
+                setEffects(if (json.has("saturation")) parsed else parsed.copy(saturation = 1f))
             }
             root["behavior"]?.let {
                 setBehavior(gson.fromJson(gson.toJson(it), BehaviorSettings::class.java))
             }
             root["dayPart"]?.let {
                 setDayPart(gson.fromJson(gson.toJson(it), DayPartAlbums::class.java))
+            }
+            root["quietHours"]?.let {
+                setQuietHours(gson.fromJson(gson.toJson(it), QuietHoursSettings::class.java))
             }
             (root["activeAlbumId"] as? String)?.let { setActiveAlbumId(it) }
             (root["lockAlbumId"] as? String)?.let { setLockAlbumId(it) }
@@ -359,7 +394,11 @@ class WallpaperSettingsRepository private constructor(context: Context) {
 
     private fun loadEffects(): ImageEffects {
         val json = prefs.getString(KEY_EFFECTS, null) ?: return ImageEffects()
-        return runCatching { gson.fromJson(json, ImageEffects::class.java) }
+        return runCatching {
+            val element = gson.fromJson(json, com.google.gson.JsonObject::class.java)
+            val parsed = gson.fromJson(element, ImageEffects::class.java)
+            if (element.has("saturation")) parsed else parsed.copy(saturation = 1f)
+        }
             .getOrDefault(ImageEffects())
     }
 
@@ -373,6 +412,12 @@ class WallpaperSettingsRepository private constructor(context: Context) {
         val json = prefs.getString(KEY_DAY_PART, null) ?: return DayPartAlbums()
         return runCatching { gson.fromJson(json, DayPartAlbums::class.java) }
             .getOrDefault(DayPartAlbums())
+    }
+
+    private fun loadQuietHours(): QuietHoursSettings {
+        val json = prefs.getString(KEY_QUIET_HOURS, null) ?: return QuietHoursSettings()
+        return runCatching { gson.fromJson(json, QuietHoursSettings::class.java) }
+            .getOrDefault(QuietHoursSettings())
     }
 
     companion object {
@@ -395,6 +440,7 @@ class WallpaperSettingsRepository private constructor(context: Context) {
         private const val KEY_EFFECTS = "effects"
         private const val KEY_BEHAVIOR = "behavior"
         private const val KEY_DAY_PART = "day_part"
+        private const val KEY_QUIET_HOURS = "quiet_hours"
         private const val KEY_LAST_CHANGE = "last_change_at"
 
         @Volatile

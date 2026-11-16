@@ -165,6 +165,7 @@ fun TimerControls(modifier: Modifier = Modifier, compact: Boolean = false) {
         PlayOrder.RANDOM -> LanguageManager.t("Rastgele", "Random", context)
         PlayOrder.NEWEST_FIRST -> LanguageManager.t("Yeni → eski", "Newest first", context)
         PlayOrder.OLDEST_FIRST -> LanguageManager.t("Eski → yeni", "Oldest first", context)
+        PlayOrder.LEAST_SHOWN -> LanguageManager.t("En az gösterilen", "Least shown", context)
     }
 
     val summary = if (timer.enabled) {

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 import java.util.UUID
+import java.security.MessageDigest
 
 class AlbumRepository private constructor(context: Context) {
 
@@ -208,6 +209,63 @@ class AlbumRepository private constructor(context: Context) {
         update(album.copy(images = album.images.filterNot { it.uri == uri }))
     }
 
+    fun toggleFavorite(albumId: String, uri: String) {
+        val album = getById(albumId) ?: return
+        update(album.copy(images = album.images.map {
+            if (it.uri == uri) it.copy(favorite = !it.favorite) else it
+        }))
+    }
+
+    fun markShown(albumId: String, uri: String) {
+        val album = getById(albumId) ?: return
+        val now = System.currentTimeMillis()
+        persist(
+            listOfAlbumsReplacing(album.copy(images = album.images.map {
+                if (it.uri == uri) it.copy(shownCount = it.shownCount + 1, lastShownAt = now) else it
+            })),
+            refreshWatch = false,
+            commit = false
+        )
+    }
+
+    fun rotateImage(albumId: String, uri: String) {
+        val album = getById(albumId) ?: return
+        update(album.copy(images = album.images.map {
+            if (it.uri == uri) it.copy(rotationDegrees = (it.rotationDegrees + 90) % 360) else it
+        }))
+    }
+
+    fun reorderImages(albumId: String, orderedUris: List<String>) {
+        val album = getById(albumId) ?: return
+        val byUri = album.images.associateBy { it.uri }
+        val ordered = orderedUris.mapNotNull(byUri::get)
+        val remaining = album.images.filterNot { it.uri in orderedUris }
+        update(album.copy(images = ordered + remaining))
+    }
+
+    fun removeDuplicateImages(context: Context, albumId: String): Int {
+        val album = getById(albumId) ?: return 0
+        val seen = HashSet<String>()
+        val kept = album.images.filter { image ->
+            val digest = runCatching {
+                context.contentResolver.openInputStream(Uri.parse(image.uri))?.use { input ->
+                    val md = MessageDigest.getInstance("SHA-256")
+                    val buffer = ByteArray(32 * 1024)
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        md.update(buffer, 0, count)
+                    }
+                    md.digest().joinToString("") { b -> "%02x".format(b) }
+                }
+            }.getOrNull()
+            digest == null || seen.add(digest)
+        }
+        val removed = album.images.size - kept.size
+        if (removed > 0) update(album.copy(images = kept))
+        return removed
+    }
+
     fun updateCrop(albumId: String, uri: String, left: Float, top: Float, right: Float, bottom: Float) {
         val album = getById(albumId) ?: return
         update(
@@ -250,9 +308,14 @@ class AlbumRepository private constructor(context: Context) {
         }.getOrDefault(emptyList())
     }
 
-    private fun persist(list: List<Album>, refreshWatch: Boolean = true) {
-        // Büyük albümlerde apply() kaybı riskine karşı commit
-        prefs.edit().putString(KEY, gson.toJson(list)).commit()
+    private fun persist(
+        list: List<Album>,
+        refreshWatch: Boolean = true,
+        commit: Boolean = true
+    ) {
+        // Metadata edits use commit for reliability; frequent view counts use async apply.
+        val editor = prefs.edit().putString(KEY, gson.toJson(list))
+        if (commit) editor.commit() else editor.apply()
         _albums.value = list
         if (refreshWatch) {
             runCatching { FolderWatchManager.refresh(appContext) }

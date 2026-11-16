@@ -1,5 +1,6 @@
 package com.makay.wallpaper.ui
 
+import android.app.TimePickerDialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +35,7 @@ import com.makay.wallpaper.data.WallpaperSettingsRepository
 import com.makay.wallpaper.domain.model.Album
 import com.makay.wallpaper.domain.model.ImageEffects
 import com.makay.wallpaper.domain.model.TransitionStyle
+import com.makay.wallpaper.domain.model.QuietHoursSettings
 import com.makay.wallpaper.util.BackupRestore
 import com.makay.wallpaper.util.LanguageManager
 
@@ -45,8 +47,16 @@ fun AdvancedFeaturesSection() {
     val effects by settings.effects.collectAsState()
     val behavior by settings.behavior.collectAsState()
     val dayPart by settings.dayPart.collectAsState()
+    val quietHours by settings.quietHours.collectAsState()
     val albumList by albumsRepo.albums.collectAsState()
     var backupMsg by remember { mutableStateOf<String?>(null) }
+
+    fun updateQuietHours(value: QuietHoursSettings) {
+        settings.setQuietHours(value)
+        if (settings.timer.value.enabled) {
+            com.makay.wallpaper.core.WallpaperScheduler.scheduleTimer(context)
+        }
+    }
 
     var controlNotifOn by remember {
         mutableStateOf(com.makay.wallpaper.util.WallpaperControlNotification.isEnabled(context))
@@ -108,6 +118,16 @@ fun AdvancedFeaturesSection() {
                     effects.vignette,
                     0f..1f
                 ) { settings.setEffects(effects.copy(vignette = it)) }
+                EffectSlider(
+                    LanguageManager.t("Kontrast", "Contrast", context),
+                    effects.contrast,
+                    -0.5f..0.5f
+                ) { settings.setEffects(effects.copy(contrast = it)) }
+                EffectSlider(
+                    LanguageManager.t("Doygunluk", "Saturation", context),
+                    effects.saturation,
+                    0f..2f
+                ) { settings.setEffects(effects.copy(saturation = it)) }
                 AdvTriggerRow(
                     LanguageManager.t("Gri ton", "Grayscale", context),
                     effects.grayscale
@@ -175,6 +195,49 @@ fun AdvancedFeaturesSection() {
         }
 
         Text(
+            LanguageManager.t("Sessiz saatler", "Quiet hours", context),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold
+        )
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdvTriggerRow(
+                    LanguageManager.t("Otomatik değişimi durdur", "Pause automatic changes", context),
+                    quietHours.enabled
+                ) { updateQuietHours(quietHours.copy(enabled = it)) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TvActionButton(
+                        onClick = {
+                            TimePickerDialog(context, { _, hour, minute ->
+                                updateQuietHours(quietHours.copy(startMinute = hour * 60 + minute))
+                            }, quietHours.startMinute / 60, quietHours.startMinute % 60, true).show()
+                        },
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        idle = MaterialTheme.colorScheme.secondary
+                    ) {
+                        Text("${LanguageManager.t("Başlangıç", "Starts", context)} %02d:%02d".format(quietHours.startMinute / 60, quietHours.startMinute % 60))
+                    }
+                    TvActionButton(
+                        onClick = {
+                            TimePickerDialog(context, { _, hour, minute ->
+                                updateQuietHours(quietHours.copy(endMinute = hour * 60 + minute))
+                            }, quietHours.endMinute / 60, quietHours.endMinute % 60, true).show()
+                        },
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        idle = MaterialTheme.colorScheme.secondary
+                    ) {
+                        Text("${LanguageManager.t("Bitiş", "Ends", context)} %02d:%02d".format(quietHours.endMinute / 60, quietHours.endMinute % 60))
+                    }
+                }
+                Text(
+                    LanguageManager.t("Bu aralıkta otomatik değişim yapılmaz; elle değiştirme çalışmaya devam eder.", "Automatic changes pause during this window; manual changes still work.", context),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Text(
             LanguageManager.t("Davranış", "Behavior", context),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
@@ -233,8 +296,10 @@ fun AdvancedFeaturesSection() {
             ) {
                 Text(
                     LanguageManager.t(
-                        "Bildirim çubuğundan sonraki / önceki / albüm değiştir.",
-                        "Change next / previous / album from the notification shade.",
+                        "Bildirim çubuğundan sonraki / önceki / albüm değiştir. Hızlı Ayarlar'a " +
+                            "Sonraki duvar kâğıdı kutucuğunu da ekleyebilirsiniz.",
+                        "Change next / previous / album from the notification shade. Add the " +
+                            "Next wallpaper tile from Quick Settings for one-tap access.",
                         context
                     ),
                     style = MaterialTheme.typography.bodySmall,

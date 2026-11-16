@@ -117,7 +117,9 @@ class MakayLiveWallpaperService : WallpaperService() {
         private val confirmHiddenTrigger = Runnable {
             if (lastVisible == false) {
                 val triggers = WallpaperSettingsRepository.getInstance(applicationContext).triggers.value
-                if (triggers.onHomeHidden && !WallpaperController.isGestureCooldownActive()) {
+                if (triggers.onHomeHidden &&
+                    !WallpaperSettingsRepository.getInstance(applicationContext).isQuietHoursNow() &&
+                    !WallpaperController.isGestureCooldownActive()) {
                     WallpaperController.next(applicationContext)
                 }
             }
@@ -136,7 +138,8 @@ class MakayLiveWallpaperService : WallpaperService() {
                     !WallpaperController.isGestureCooldownActive()
                 ) {
                     val triggers = WallpaperSettingsRepository.getInstance(applicationContext).triggers.value
-                    if (triggers.onHomeShown) {
+                    if (triggers.onHomeShown &&
+                        !WallpaperSettingsRepository.getInstance(applicationContext).isQuietHoursNow()) {
                         WallpaperController.next(applicationContext)
                         reloadAndDraw(animate = true)
                     }

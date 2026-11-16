@@ -37,6 +37,10 @@ class ScheduleReceiver : BroadcastReceiver() {
                         val schedule = ScheduleRepository.getInstance(app).getById(id)
                             ?: return@launch
                         if (!schedule.enabled) return@launch
+                        if (WallpaperSettingsRepository.getInstance(app).isQuietHoursNow()) {
+                            WallpaperScheduler.scheduleAlarm(app, schedule)
+                            return@launch
+                        }
                         when (schedule.type) {
                             ScheduleType.WALLPAPER -> {
                                 if (schedule.random) WallpaperController.random(app)

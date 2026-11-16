@@ -7,7 +7,11 @@ data class WallpaperImage(
     val cropRight: Float = 1f,
     val cropBottom: Float = 1f,
     /** Albüme eklenme zamanı (sıralama için). 0 = bilinmiyor → liste indeksi kullanılır. */
-    val addedAt: Long = 0L
+    val addedAt: Long = 0L,
+    val favorite: Boolean = false,
+    val shownCount: Int = 0,
+    val lastShownAt: Long = 0L,
+    val rotationDegrees: Int = 0
 ) {
     fun cropRectNormalized(): android.graphics.RectF =
         android.graphics.RectF(
@@ -42,7 +46,9 @@ enum class PlayOrder {
     /** En yeniden en eskiye */
     NEWEST_FIRST,
     /** En eskiden en yeniye */
-    OLDEST_FIRST
+    OLDEST_FIRST,
+    /** Images shown least often first; ties prefer images never shown. */
+    LEAST_SHOWN
 }
 
 data class TimerSettings(
@@ -155,10 +161,13 @@ data class ImageEffects(
     val brightness: Float = 0f,
     /** 0–1 kenar karartma */
     val vignette: Float = 0f,
-    val grayscale: Boolean = false
+    val grayscale: Boolean = false,
+    val contrast: Float = 0f,
+    val saturation: Float = 1f
 ) {
     fun isIdentity(): Boolean =
-        blurRadius <= 0.01f && brightness == 0f && vignette <= 0.01f && !grayscale
+        blurRadius <= 0.01f && brightness == 0f && vignette <= 0.01f && !grayscale &&
+            contrast == 0f && saturation == 1f
 }
 
 enum class TransitionStyle {
@@ -170,6 +179,33 @@ data class BehaviorSettings(
     val pauseInLandscape: Boolean = true,
     val transition: TransitionStyle = TransitionStyle.FADE
 )
+
+/** Suppress automatic changes during a recurring local-time window. */
+data class QuietHoursSettings(
+    val enabled: Boolean = false,
+    val startMinute: Int = 22 * 60,
+    val endMinute: Int = 7 * 60
+) {
+    fun contains(minuteOfDay: Int): Boolean {
+        if (!enabled || startMinute == endMinute) return false
+        return if (startMinute < endMinute) {
+            minuteOfDay in startMinute until endMinute
+        } else {
+            minuteOfDay >= startMinute || minuteOfDay < endMinute
+        }
+    }
+
+    fun minutesUntilEnd(minuteOfDay: Int): Int {
+        if (!contains(minuteOfDay)) return 0
+        return if (startMinute < endMinute) {
+            endMinute - minuteOfDay
+        } else if (minuteOfDay >= startMinute) {
+            1440 - minuteOfDay + endMinute
+        } else {
+            endMinute - minuteOfDay
+        }
+    }
+}
 
 /**
  * Günün saatine göre albüm.

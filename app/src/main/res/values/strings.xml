@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="tile_next_wallpaper">Sonraki duvar kâğıdı</string>
     <string name="app_name">Makay Wallpaper</string>
     <string name="action_next">Sonraki</string>
     <string name="action_prev">Önceki</string>

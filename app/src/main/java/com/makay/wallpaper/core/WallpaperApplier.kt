@@ -37,7 +37,8 @@ object WallpaperApplier {
                 context,
                 Uri.parse(image.uri),
                 image.cropRectNormalized(),
-                fit
+                fit,
+                image.rotationDegrees
             ) ?: return false
             try {
                 applyBitmap(context, bitmap, target)
@@ -74,10 +75,17 @@ object WallpaperApplier {
         context: Context,
         uri: Uri,
         crop: RectF,
-        fit: DisplayFitSettings = WallpaperSettingsRepository.getInstance(context).displayFit.value
+        fit: DisplayFitSettings = WallpaperSettingsRepository.getInstance(context).displayFit.value,
+        rotationDegrees: Int = 0
     ): Bitmap? {
         val effective = fit.copy(autoRotateDimsForLandscape = false)
-        val cropped = decodeCropped(context, uri, crop, effective) ?: return null
+        var cropped = decodeCropped(context, uri, crop, effective) ?: return null
+        if (rotationDegrees % 360 != 0) {
+            val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+            val rotated = Bitmap.createBitmap(cropped, 0, 0, cropped.width, cropped.height, matrix, true)
+            if (rotated !== cropped && !cropped.isRecycled) cropped.recycle()
+            cropped = rotated
+        }
         val (tw, th) = resolveTargetSize(context, effective, cropped.width, cropped.height)
         val scaled = scaleToExact(
             cropped,

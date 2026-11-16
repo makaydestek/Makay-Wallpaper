@@ -124,7 +124,15 @@ object WallpaperController {
 
     /** Son değişim zamanı + bildirim + zamanlayıcıyı baştan planla (manuel jest dahil). */
     private fun onWallpaperApplied(context: Context) {
-        WallpaperSettingsRepository.getInstance(context).markChangedNow()
+        val settings = WallpaperSettingsRepository.getInstance(context)
+        settings.markChangedNow()
+        val albums = AlbumRepository.getInstance(context)
+        currentImage(context)?.let { image ->
+            settings.activeAlbumId.value?.let { albums.markShown(it, image.uri) }
+        }
+        settings.lockAlbumId.value?.takeIf { it != settings.activeAlbumId.value }?.let { id ->
+            currentImage(context, forLock = true)?.let { albums.markShown(id, it.uri) }
+        }
         notifyChanged(context)
         WallpaperScheduler.rescheduleTimerAfterChange(context)
     }
@@ -208,10 +216,14 @@ object WallpaperController {
         allowDayPart: Boolean = false
     ): Boolean {
         if (isLandscapePaused(context)) return false
+        if (allowDayPart && WallpaperSettingsRepository.getInstance(context).isQuietHoursNow()) {
+            return false
+        }
         if (allowDayPart) applyDayPartIfNeeded(context)
         val settings = WallpaperSettingsRepository.getInstance(context)
         return when (val order = settings.resolvedPlayOrder()) {
             PlayOrder.RANDOM -> random(context, allowDayPart = false)
+            PlayOrder.LEAST_SHOWN -> advanceLeastShown(context)
             PlayOrder.NEWEST_FIRST, PlayOrder.OLDEST_FIRST ->
                 advanceOrdered(context, +1, order)
             PlayOrder.SEQUENTIAL -> advance(context, +1)
@@ -222,7 +234,7 @@ object WallpaperController {
         if (isLandscapePaused(context)) return false
         val settings = WallpaperSettingsRepository.getInstance(context)
         return when (val order = settings.resolvedPlayOrder()) {
-            PlayOrder.NEWEST_FIRST, PlayOrder.OLDEST_FIRST ->
+            PlayOrder.NEWEST_FIRST, PlayOrder.OLDEST_FIRST, PlayOrder.LEAST_SHOWN ->
                 advanceOrdered(context, -1, order)
             // Rastgele modda geri = albüm listesinde bir önceki (karışıklığı bozmaz)
             else -> advance(context, -1)
@@ -345,6 +357,20 @@ object WallpaperController {
         return applyCurrent(context)
     }
 
+    private fun advanceLeastShown(context: Context): Boolean {
+        val settings = WallpaperSettingsRepository.getInstance(context)
+        val albums = AlbumRepository.getInstance(context)
+        val albumId = settings.activeAlbumId.value ?: return false
+        val album = albums.getById(albumId) ?: return false
+        if (album.images.isEmpty()) return false
+        val minimum = album.images.minOf { it.shownCount }
+        val candidates = album.images.indices.filter { album.images[it].shownCount == minimum }
+        val current = settings.activeIndex.value.coerceIn(0, album.images.lastIndex)
+        val pool = candidates.filter { it != current }.ifEmpty { candidates }
+        settings.setActiveIndex(pool.random())
+        return applyCurrent(context)
+    }
+
     /** Tarih / eklenme sırasına göre ilerle. */
     private fun advanceOrdered(context: Context, delta: Int, order: PlayOrder): Boolean {
         synchronized(indexLock) {
@@ -379,13 +405,20 @@ object WallpaperController {
         images: List<WallpaperImage>,
         order: PlayOrder
     ): List<Int> {
-        if (order != PlayOrder.NEWEST_FIRST && order != PlayOrder.OLDEST_FIRST) {
+        if (order == PlayOrder.LEAST_SHOWN) {
+            return images.indices.sortedWith(
+                compareBy<Int> { images[it].shownCount }.thenBy { images[it].lastShownAt }
+            )
+        }
+        if (order != PlayOrder.NEWEST_FIRST && order != PlayOrder.OLDEST_FIRST &&
+            order != PlayOrder.LEAST_SHOWN) {
             return images.indices.toList()
         }
         val indexed = images.mapIndexed { i, img -> i to imageSortKey(context, img, i) }
         return when (order) {
             PlayOrder.NEWEST_FIRST -> indexed.sortedByDescending { it.second }.map { it.first }
             PlayOrder.OLDEST_FIRST -> indexed.sortedBy { it.second }.map { it.first }
+            PlayOrder.LEAST_SHOWN -> images.indices.sortedBy { images[it].shownCount }
             else -> images.indices.toList()
         }
     }

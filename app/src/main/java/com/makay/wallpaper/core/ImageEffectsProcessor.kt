@@ -26,21 +26,23 @@ object ImageEffectsProcessor {
             owned = true
         }
 
-        if (effects.grayscale || effects.brightness != 0f || effects.vignette > 0.01f) {
+        if (effects.grayscale || effects.brightness != 0f || effects.vignette > 0.01f ||
+            effects.contrast != 0f || effects.saturation != 1f) {
             val out = Bitmap.createBitmap(current.width, current.height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(out)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-            if (effects.grayscale || effects.brightness != 0f) {
+            if (effects.grayscale || effects.brightness != 0f || effects.contrast != 0f || effects.saturation != 1f) {
                 val cm = ColorMatrix()
-                if (effects.grayscale) cm.setSaturation(0f)
-                if (effects.brightness != 0f) {
-                    val b = effects.brightness.coerceIn(-0.5f, 0.5f) * 255f
+                cm.setSaturation(if (effects.grayscale) 0f else effects.saturation.coerceIn(0f, 2f))
+                if (effects.contrast != 0f || effects.brightness != 0f) {
+                    val contrast = (1f + effects.contrast.coerceIn(-1f, 1f)).coerceIn(0f, 2f)
+                    val offset = 128f * (1f - contrast) + effects.brightness.coerceIn(-0.5f, 0.5f) * 255f
                     cm.postConcat(
                         ColorMatrix(
                             floatArrayOf(
-                                1f, 0f, 0f, 0f, b,
-                                0f, 1f, 0f, 0f, b,
-                                0f, 0f, 1f, 0f, b,
+                                contrast, 0f, 0f, 0f, offset,
+                                0f, contrast, 0f, 0f, offset,
+                                0f, 0f, contrast, 0f, offset,
                                 0f, 0f, 0f, 1f, 0f
                             )
                         )

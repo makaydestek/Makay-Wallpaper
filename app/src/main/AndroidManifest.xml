@@ -69,6 +69,17 @@
                 android:resource="@xml/live_wallpaper" />
         </service>
 
+        <service
+            android:name=".service.NextWallpaperTileService"
+            android:label="@string/tile_next_wallpaper"
+            android:icon="@drawable/ic_notif_wallpaper"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <!-- MIUI vb.: ana ekran dokunuşları canlı WP'ye gelmez; jest yedeği -->
         <service
             android:name=".service.DoubleTapAccessibilityService"
