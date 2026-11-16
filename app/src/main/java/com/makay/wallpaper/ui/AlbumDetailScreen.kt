@@ -335,9 +335,9 @@ fun AlbumDetailScreen(
             val visibleImages = remember(album.images, imageQuery, imageFilter, imageSort) {
                 album.images
                     .filter { imageFilter == 0 || it.favorite }
-                    .filter {
-                        imageQuery.isBlank() || image.uri.contains(imageQuery, ignoreCase = true) ||
-                            imageDisplayName(context, image.uri).contains(imageQuery, ignoreCase = true)
+                    .filter { item ->
+                        imageQuery.isBlank() || item.uri.contains(imageQuery, ignoreCase = true) ||
+                            imageDisplayName(context, item.uri).contains(imageQuery, ignoreCase = true)
                     }
                     .let { list ->
                         if (imageSort == 1) list.sortedWith(
