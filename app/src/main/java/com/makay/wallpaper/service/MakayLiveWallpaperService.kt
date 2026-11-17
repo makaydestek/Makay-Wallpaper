@@ -110,7 +110,9 @@ class MakayLiveWallpaperService : WallpaperService() {
 
         override fun onSurfaceChanged(holder: SurfaceHolder?, format: Int, width: Int, height: Int) {
             super.onSurfaceChanged(holder, format, width, height)
-            drawFrame()
+            // Oyunlardan dönerken sistem duvar kâğıdı yüzeyini yeniden boyutlandırabilir.
+            // Eski bitmap'i yeni yön oranına esnetmek yerine yüzey ölçüsünde yeniden hazırla.
+            if (width > 0 && height > 0) reloadAndDraw(animate = false, targetSize = width to height)
         }
 
         private var hiddenSince = 0L
@@ -188,7 +190,7 @@ class MakayLiveWallpaperService : WallpaperService() {
             reloadAndDraw(animate = true)
         }
 
-        private fun reloadAndDraw(animate: Boolean) {
+        private fun reloadAndDraw(animate: Boolean, targetSize: Pair<Int, Int>? = null) {
             val image = WallpaperController.currentImage(applicationContext)
             val useFade = animate &&
                 WallpaperSettingsRepository.getInstance(applicationContext)
@@ -197,7 +199,8 @@ class MakayLiveWallpaperService : WallpaperService() {
                 WallpaperApplier.prepareForDisplay(
                     applicationContext,
                     Uri.parse(image.uri),
-                    image.cropRectNormalized()
+                    image.cropRectNormalized(),
+                    targetSize = targetSize
                 )
             } else null
 

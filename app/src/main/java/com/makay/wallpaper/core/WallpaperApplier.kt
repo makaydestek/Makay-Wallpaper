@@ -76,17 +76,18 @@ object WallpaperApplier {
         uri: Uri,
         crop: RectF,
         fit: DisplayFitSettings = WallpaperSettingsRepository.getInstance(context).displayFit.value,
-        rotationDegrees: Int = 0
+        rotationDegrees: Int = 0,
+        targetSize: Pair<Int, Int>? = null
     ): Bitmap? {
         val effective = fit.copy(autoRotateDimsForLandscape = false)
-        var cropped = decodeCropped(context, uri, crop, effective) ?: return null
+        var cropped = decodeCropped(context, uri, crop, effective, targetSize) ?: return null
         if (rotationDegrees % 360 != 0) {
             val matrix = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
             val rotated = Bitmap.createBitmap(cropped, 0, 0, cropped.width, cropped.height, matrix, true)
             if (rotated !== cropped && !cropped.isRecycled) cropped.recycle()
             cropped = rotated
         }
-        val (tw, th) = resolveTargetSize(context, effective, cropped.width, cropped.height)
+        val (tw, th) = targetSize ?: resolveTargetSize(context, effective, cropped.width, cropped.height)
         val scaled = scaleToExact(
             cropped,
             tw,
@@ -105,13 +106,14 @@ object WallpaperApplier {
         context: Context,
         uri: Uri,
         crop: RectF,
-        fit: DisplayFitSettings? = null
+        fit: DisplayFitSettings? = null,
+        targetSize: Pair<Int, Int>? = null
     ): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         openStream(context, uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
-        val (tw, th) = if (fit != null) {
+        val (tw, th) = targetSize ?: if (fit != null) {
             resolveTargetSize(context, fit, bounds.outWidth, bounds.outHeight)
         } else {
             deviceScreenSize(context)
