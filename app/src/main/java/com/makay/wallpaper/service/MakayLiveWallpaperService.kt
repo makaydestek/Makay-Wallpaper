@@ -8,7 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Rect
+import android.graphics.RectF
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -21,6 +21,9 @@ import com.makay.wallpaper.core.WallpaperController
 import com.makay.wallpaper.data.WallpaperSettingsRepository
 import com.makay.wallpaper.domain.model.GestureAction
 import com.makay.wallpaper.domain.model.TransitionStyle
+import com.makay.wallpaper.util.PlatformManager
+import kotlin.math.max
+import kotlin.math.min
 
 class MakayLiveWallpaperService : WallpaperService() {
 
@@ -35,6 +38,8 @@ class MakayLiveWallpaperService : WallpaperService() {
         private var tapCount = 0
         private var lastTapAt = 0L
         private var lastVisible: Boolean? = null
+        private val usePortraitFrame by lazy { !PlatformManager.isTvMode(applicationContext) }
+        private var portraitFrameSize: Pair<Int, Int>? = null
         private val tapReset = Runnable {
             val count = tapCount
             tapCount = 0
@@ -71,7 +76,6 @@ class MakayLiveWallpaperService : WallpaperService() {
             }
             setTouchEventsEnabled(true)
             setOffsetNotificationsEnabled(false)
-            reloadAndDraw(animate = false)
         }
 
         override fun onCommand(
@@ -113,6 +117,10 @@ class MakayLiveWallpaperService : WallpaperService() {
             // Oyunlardan dönerken sistem duvar kâğıdı yüzeyini yeniden boyutlandırabilir.
             // Eski bitmap'i yeni yön oranına esnetmek yerine yüzey ölçüsünde yeniden hazırla.
             if (width > 0 && height > 0) reloadAndDraw(animate = false, targetSize = width to height)
+        }
+
+        override fun onSurfaceRedrawNeeded(holder: SurfaceHolder?) {
+            drawFrame()
         }
 
         private var hiddenSince = 0L
@@ -191,6 +199,17 @@ class MakayLiveWallpaperService : WallpaperService() {
         }
 
         private fun reloadAndDraw(animate: Boolean, targetSize: Pair<Int, Int>? = null) {
+            val size = targetSize ?: surfaceHolder?.surfaceFrame?.let { frame ->
+                frame.width() to frame.height()
+            } ?: return
+            if (size.first <= 0 || size.second <= 0) return
+            // Keep the phone's framing stable even if a game changes the wallpaper surface.
+            val frameSize = if (usePortraitFrame) {
+                portraitFrameSize ?: (min(size.first, size.second) to max(size.first, size.second))
+                    .also { portraitFrameSize = it }
+            } else {
+                size
+            }
             val image = WallpaperController.currentImage(applicationContext)
             val useFade = animate &&
                 WallpaperSettingsRepository.getInstance(applicationContext)
@@ -200,7 +219,8 @@ class MakayLiveWallpaperService : WallpaperService() {
                     applicationContext,
                     Uri.parse(image.uri),
                     image.cropRectNormalized(),
-                    targetSize = targetSize
+                    rotationDegrees = image.rotationDegrees,
+                    targetSize = frameSize
                 )
             } else null
 
@@ -218,6 +238,7 @@ class MakayLiveWallpaperService : WallpaperService() {
                 handler.removeCallbacks(fadeTick)
                 handler.post(fadeTick)
             } else {
+                handler.removeCallbacks(fadeTick)
                 previousBitmap?.recycle()
                 previousBitmap = null
                 val old = bitmap
@@ -234,7 +255,6 @@ class MakayLiveWallpaperService : WallpaperService() {
             try {
                 canvas = holder.lockCanvas()
                 if (canvas == null) return
-                val dst = Rect(0, 0, canvas.width, canvas.height)
                 val prev = previousBitmap
                 val cur = bitmap
                 val hasContent =
@@ -248,11 +268,11 @@ class MakayLiveWallpaperService : WallpaperService() {
                 }
                 if (prev != null && !prev.isRecycled && fadeProgress < 1f) {
                     paint.alpha = ((1f - fadeProgress) * 255).toInt().coerceIn(0, 255)
-                    canvas.drawBitmap(prev, null, dst, paint)
+                    drawBitmapToSurface(canvas, prev)
                 }
                 if (cur != null && !cur.isRecycled) {
                     paint.alpha = (fadeProgress * 255).toInt().coerceIn(0, 255)
-                    canvas.drawBitmap(cur, null, dst, paint)
+                    drawBitmapToSurface(canvas, cur)
                 }
                 paint.alpha = 255
             } finally {
@@ -260,6 +280,20 @@ class MakayLiveWallpaperService : WallpaperService() {
                     runCatching { holder.unlockCanvasAndPost(canvas) }
                 }
             }
+        }
+
+        private val bitmapDestination = RectF()
+
+        private fun drawBitmapToSurface(canvas: Canvas, bitmap: Bitmap) {
+            val scaleX = canvas.width.toFloat() / bitmap.width
+            val scaleY = canvas.height.toFloat() / bitmap.height
+            val scale = if (usePortraitFrame) min(scaleX, scaleY) else max(scaleX, scaleY)
+            val width = bitmap.width * scale
+            val height = bitmap.height * scale
+            val left = (canvas.width - width) / 2f
+            val top = (canvas.height - height) / 2f
+            bitmapDestination.set(left, top, left + width, top + height)
+            canvas.drawBitmap(bitmap, null, bitmapDestination, paint)
         }
     }
 }
