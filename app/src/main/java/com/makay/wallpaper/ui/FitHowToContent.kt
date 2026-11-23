@@ -31,8 +31,8 @@ fun fitHowToSteps(): List<HowToStep> = listOf(
     HowToStep(
         "Sığdırma modu",
         "Fit mode",
-        "• Doldur (önerilen): Ekranı tamamen kaplar; fazla kenarlar kırpılabilir.\n• Sığdır: Tüm görsel görünür; kenarlarda şerit olabilir.\n• Esnet: Oran bozulabilir; görsel zorla ekran boyutuna çekilir.",
-        "• Fill (recommended): Covers the screen; edges may be cropped.\n• Fit: Whole image visible; bars may appear.\n• Stretch: May distort; forces image to screen size."
+        "• Doldur (önerilen): Ekranı tamamen kaplar; yüz algılanırsa kadrajı yüze göre ayarlar, fazla kenarlar kırpılabilir.\n• Sığdır: Tüm görsel görünür; kenarlarda şerit olabilir.\n• Esnet: Oran bozulabilir; görsel zorla ekran boyutuna çekilir.",
+        "• Fill (recommended): Covers the screen and shifts the crop toward a detected face; edges may be cropped.\n• Fit: Whole image visible; bars may appear.\n• Stretch: May distort; forces image to screen size."
     ),
     HowToStep(
         "Hedef çözünürlük → Özel (Custom)",

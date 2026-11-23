@@ -482,8 +482,8 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                                     Text(
                                         when (mode) {
                                             FitMode.FILL -> LanguageManager.t(
-                                                "Ekranı tamamen kaplar; fazla kenarlar kırpılır",
-                                                "Covers the screen; edges may be cropped",
+                                                "Ekranı kaplar; yüz algılanırsa kadrajı yüze kaydırır, kenarlar kırpılabilir",
+                                                "Covers the screen; shifts toward a detected face, and may crop edges",
                                                 context
                                             )
                                             FitMode.FIT -> LanguageManager.t(
