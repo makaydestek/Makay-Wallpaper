@@ -5,6 +5,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import com.makay.wallpaper.core.WallpaperController
 import com.makay.wallpaper.data.WallpaperSettingsRepository
@@ -22,7 +23,6 @@ class DoubleTapAccessibilityService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
     private var tapCount = 0
     private var lastTapAt = 0L
-    private var suppressUntil = 0L
     private val reset = Runnable {
         val c = tapCount
         tapCount = 0
@@ -39,7 +39,7 @@ class DoubleTapAccessibilityService : AccessibilityService() {
             flags = flags or
                 AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
                 AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
-            notificationTimeout = 40
+            notificationTimeout = 0
         }
         instance = this
     }
@@ -49,36 +49,35 @@ class DoubleTapAccessibilityService : AccessibilityService() {
         val settings = WallpaperSettingsRepository.getInstance(applicationContext)
         if (!settings.gestures.value.enabled) return
 
-        val pkg = event.packageName?.toString()
-            ?: rootInActiveWindow?.packageName?.toString()
-            ?: return
-        if (!isLauncherPackage(pkg)) return
-
-        val now = System.currentTimeMillis()
-
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                // Klasör aç/kapa, uygulama geçişi
-                suppressUntil = now + SUPPRESS_AFTER_WINDOW_MS
                 tapCount = 0
                 handler.removeCallbacks(reset)
             }
             AccessibilityEvent.TYPE_TOUCH_INTERACTION_START -> {
-                if (now < suppressUntil) return
+                val pkg = rootInActiveWindow?.packageName?.toString()
+                    ?: event.packageName?.toString()
+                    ?: return
+                if (!isLauncherPackage(pkg)) return
+                val now = SystemClock.uptimeMillis()
                 // Keep this listener active even with our live wallpaper. Some launchers
                 // consume home-screen touches instead of forwarding them to the wallpaper.
                 // WallpaperController deduplicates the two listeners when both receive them.
-                if (now - lastTapAt > TAP_SESSION_MS) tapCount = 0
+                if (now - lastTapAt > TAP_WINDOW_MS && tapCount != 0) {
+                    handler.removeCallbacks(reset)
+                    reset.run()
+                }
                 lastTapAt = now
                 tapCount++
                 handler.removeCallbacks(reset)
-                handler.postDelayed(reset, TAP_COMMIT_MS)
+                handler.postDelayed(reset, TAP_WINDOW_MS)
             }
         }
     }
 
     private fun handleTaps(count: Int) {
-        if (System.currentTimeMillis() < suppressUntil) return
+        val pkg = rootInActiveWindow?.packageName?.toString()
+        if (pkg != null && !isLauncherPackage(pkg)) return
         val gestures = WallpaperSettingsRepository.getInstance(applicationContext).gestures.value
         if (!gestures.enabled) return
         val action: GestureAction = when (count) {
@@ -101,23 +100,22 @@ class DoubleTapAccessibilityService : AccessibilityService() {
     }
 
     companion object {
-        private const val TAP_SESSION_MS = 700L
-        private const val TAP_COMMIT_MS = 650L
-        private const val SUPPRESS_AFTER_WINDOW_MS = 800L
+        private const val TAP_WINDOW_MS = 450L
 
         @Volatile
         var instance: DoubleTapAccessibilityService? = null
             private set
 
+        fun isConnected(): Boolean = instance != null
+
         fun isEnabled(context: android.content.Context): Boolean {
-            val expected = "${context.packageName}/${DoubleTapAccessibilityService::class.java.canonicalName}"
+            val expected = android.content.ComponentName(context, DoubleTapAccessibilityService::class.java)
             val enabled = android.provider.Settings.Secure.getString(
                 context.contentResolver,
                 android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
             ).orEmpty()
             return enabled.split(':').any {
-                it.equals(expected, ignoreCase = true) ||
-                    it.endsWith(DoubleTapAccessibilityService::class.java.name, ignoreCase = true)
+                android.content.ComponentName.unflattenFromString(it) == expected
             }
         }
 

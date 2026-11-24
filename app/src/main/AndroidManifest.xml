@@ -83,7 +83,7 @@
         <!-- MIUI vb.: ana ekran dokunuşları canlı WP'ye gelmez; jest yedeği -->
         <service
             android:name=".service.DoubleTapAccessibilityService"
-            android:exported="false"
+            android:exported="true"
             android:label="@string/gesture_accessibility_label"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>

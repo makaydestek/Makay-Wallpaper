@@ -303,7 +303,7 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
                         com.makay.wallpaper.util.LiveWallpaperHelper.isOurLiveWallpaperActive(context)
                     }
                     val a11yOn = remember(statusTick) {
-                        com.makay.wallpaper.service.DoubleTapAccessibilityService.isEnabled(context)
+                        com.makay.wallpaper.service.DoubleTapAccessibilityService.isConnected()
                     }
                     val setupOk = liveActive && a11yOn && gestures.enabled
                     Text(

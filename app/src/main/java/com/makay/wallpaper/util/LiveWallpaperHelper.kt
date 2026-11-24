@@ -37,7 +37,12 @@ object LiveWallpaperHelper {
         } catch (_: Exception) {
             false
         }
-        return "canlı WP ${if (live) "açık" else "kapalı"} · erişilebilirlik ${if (a11y) "açık" else "kapalı"}"
+        val accessibilityStatus = when {
+            com.makay.wallpaper.service.DoubleTapAccessibilityService.isConnected() -> "çalışıyor"
+            a11y -> "açık, servis bağlı değil"
+            else -> "kapalı"
+        }
+        return "canlı WP ${if (live) "açık" else "kapalı"} · erişilebilirlik $accessibilityStatus"
     }
 
     /** Sistem canlı duvar kağıdı seçicisini doğrudan Makay servisiyle açar. */

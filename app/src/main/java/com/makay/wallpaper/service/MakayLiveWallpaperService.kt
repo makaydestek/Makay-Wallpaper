@@ -1,6 +1,7 @@
 package com.makay.wallpaper.service
 
 import android.content.BroadcastReceiver
+import android.app.WallpaperManager
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -13,6 +14,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.service.wallpaper.WallpaperService
 import android.view.MotionEvent
 import android.view.SurfaceHolder
@@ -35,14 +37,16 @@ class MakayLiveWallpaperService : WallpaperService() {
         private var previousBitmap: Bitmap? = null
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         private var fadeProgress = 1f
-        private var tapCount = 0
+        private var motionTaps = 0
+        private var commandTaps = 0
         private var lastTapAt = 0L
         private var lastVisible: Boolean? = null
         private val usePortraitFrame by lazy { !PlatformManager.isTvMode(applicationContext) }
         private var portraitFrameSize: Pair<Int, Int>? = null
         private val tapReset = Runnable {
-            val count = tapCount
-            tapCount = 0
+            // A launcher can report the same tap through both callbacks.
+            val count = max(motionTaps, commandTaps)
+            clearTaps()
             handleTaps(count)
         }
         private val fadeTick = object : Runnable {
@@ -87,14 +91,10 @@ class MakayLiveWallpaperService : WallpaperService() {
             resultRequested: Boolean
         ): android.os.Bundle? {
             // Bazı launcher'lar boş alan dokunuşunu onCommand ile iletir
-            if (action != null && (
-                    action.contains("tap", ignoreCase = true) ||
-                        action.contains("click", ignoreCase = true)
-                    )
-            ) {
+            if (action == WallpaperManager.COMMAND_TAP && !isPreview && lastVisible == true) {
                 val gestures = WallpaperSettingsRepository.getInstance(applicationContext).gestures.value
                 if (gestures.enabled) {
-                    registerTap()
+                    registerTap(fromCommand = true)
                 }
             }
             return super.onCommand(action, x, y, z, extras, resultRequested)
@@ -138,6 +138,7 @@ class MakayLiveWallpaperService : WallpaperService() {
         override fun onVisibilityChanged(visible: Boolean) {
             val prev = lastVisible
             lastVisible = visible
+            if (!visible) clearTaps()
             if (visible) {
                 handler.removeCallbacks(confirmHiddenTrigger)
                 reloadAndDraw(animate = false)
@@ -164,23 +165,32 @@ class MakayLiveWallpaperService : WallpaperService() {
         }
 
         override fun onTouchEvent(event: MotionEvent?) {
-            if (event == null) return
+            if (event == null || isPreview || lastVisible != true) return
             val gestures = WallpaperSettingsRepository.getInstance(applicationContext).gestures.value
             if (!gestures.enabled) return
             // Boş duvar kağıdı alanı: launcher ikon/klasöre dokunuş buraya gelmez
             // Yalnız UP — tek fiziksel dokunuş = 1 sayım
             if (event.actionMasked == MotionEvent.ACTION_UP) {
-                registerTap()
+                registerTap(fromCommand = false)
             }
         }
 
-        private fun registerTap() {
-            val now = System.currentTimeMillis()
-            if (now - lastTapAt > 700) tapCount = 0
-            lastTapAt = now
-            tapCount++
+        private fun clearTaps() {
             handler.removeCallbacks(tapReset)
-            handler.postDelayed(tapReset, 650)
+            motionTaps = 0
+            commandTaps = 0
+            lastTapAt = 0L
+        }
+
+        private fun registerTap(fromCommand: Boolean) {
+            val now = SystemClock.uptimeMillis()
+            if (now - lastTapAt > 450L) {
+                if (motionTaps != 0 || commandTaps != 0) tapReset.run()
+            }
+            lastTapAt = now
+            if (fromCommand) commandTaps++ else motionTaps++
+            handler.removeCallbacks(tapReset)
+            handler.postDelayed(tapReset, 450L)
         }
 
         private fun handleTaps(count: Int) {
@@ -194,7 +204,6 @@ class MakayLiveWallpaperService : WallpaperService() {
             }
             if (use == GestureAction.NONE) return
             WallpaperController.performGesture(applicationContext, use)
-            reloadAndDraw(animate = true)
         }
 
         private fun reloadAndDraw(animate: Boolean, targetSize: Pair<Int, Int>? = null) {
