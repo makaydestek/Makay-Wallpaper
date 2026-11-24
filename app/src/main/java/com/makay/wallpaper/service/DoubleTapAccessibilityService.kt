@@ -65,12 +65,9 @@ class DoubleTapAccessibilityService : AccessibilityService() {
             }
             AccessibilityEvent.TYPE_TOUCH_INTERACTION_START -> {
                 if (now < suppressUntil) return
-                // Canlı WP dokunuş alabiliyorsa jesti o yapsın (daha az yanlış pozitif)
-                if (com.makay.wallpaper.util.LiveWallpaperHelper
-                        .isOurLiveWallpaperActive(applicationContext)
-                ) {
-                    return
-                }
+                // Keep this listener active even with our live wallpaper. Some launchers
+                // consume home-screen touches instead of forwarding them to the wallpaper.
+                // WallpaperController deduplicates the two listeners when both receive them.
                 if (now - lastTapAt > TAP_SESSION_MS) tapCount = 0
                 lastTapAt = now
                 tapCount++
@@ -104,8 +101,8 @@ class DoubleTapAccessibilityService : AccessibilityService() {
     }
 
     companion object {
-        private const val TAP_SESSION_MS = 450L
-        private const val TAP_COMMIT_MS = 420L
+        private const val TAP_SESSION_MS = 700L
+        private const val TAP_COMMIT_MS = 650L
         private const val SUPPRESS_AFTER_WINDOW_MS = 800L
 
         @Volatile

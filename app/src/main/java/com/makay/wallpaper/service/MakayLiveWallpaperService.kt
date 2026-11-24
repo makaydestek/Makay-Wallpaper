@@ -176,12 +176,11 @@ class MakayLiveWallpaperService : WallpaperService() {
 
         private fun registerTap() {
             val now = System.currentTimeMillis()
-            if (now - lastTapAt < 90) return
-            if (now - lastTapAt > 520) tapCount = 0
+            if (now - lastTapAt > 700) tapCount = 0
             lastTapAt = now
             tapCount++
             handler.removeCallbacks(tapReset)
-            handler.postDelayed(tapReset, 480)
+            handler.postDelayed(tapReset, 650)
         }
 
         private fun handleTaps(count: Int) {
