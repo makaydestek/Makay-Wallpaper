@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
+import android.os.SystemClock
+import android.util.Log
 import com.makay.wallpaper.data.AlbumRepository
 import com.makay.wallpaper.data.WallpaperSettingsRepository
 import com.makay.wallpaper.domain.model.GestureAction
@@ -13,6 +15,7 @@ import com.makay.wallpaper.domain.model.WallpaperTarget
 import com.makay.wallpaper.util.LiveWallpaperHelper
 import com.makay.wallpaper.widget.WallpaperWidgetProvider
 import java.util.Calendar
+import java.util.concurrent.Executors
 
 /**
  * Merkezi duvar kağıdı kontrolü — UI, worker, widget, receiver ve live wallpaper kullanır.
@@ -20,6 +23,7 @@ import java.util.Calendar
 object WallpaperController {
 
     private val gestureLock = Any()
+    private val gestureExecutor = Executors.newSingleThreadExecutor()
     private val indexLock = Any()
     @Volatile private var lastGestureAt = 0L
     private const val GESTURE_COOLDOWN_MS = 700L
@@ -291,14 +295,24 @@ object WallpaperController {
 
     fun prevAlbum(context: Context): Boolean = switchAlbum(context, -1)
 
-    fun performGesture(context: Context, action: GestureAction): Boolean {
-        if (action == GestureAction.NONE) return false
-        // Canlı WP + erişilebilirlik aynı dokunuşu iki kez işleyebilir; tek jest uygula
+    fun enqueueGesture(context: Context, action: GestureAction) {
+        if (action == GestureAction.NONE) return
         synchronized(gestureLock) {
-            val now = System.currentTimeMillis()
-            if (now - lastGestureAt < GESTURE_COOLDOWN_MS) return false
+            val now = SystemClock.elapsedRealtime()
+            if (lastGestureAt != 0L && now - lastGestureAt < GESTURE_COOLDOWN_MS) return
             lastGestureAt = now
         }
+        val app = context.applicationContext
+        gestureExecutor.execute {
+            try {
+                performGesture(app, action)
+            } catch (e: Exception) {
+                Log.e("MakayWallpaper", "Wallpaper gesture failed", e)
+            }
+        }
+    }
+
+    private fun performGesture(context: Context, action: GestureAction): Boolean {
         return when (action) {
             GestureAction.NEXT -> next(context)
             GestureAction.PREV -> prev(context)
@@ -310,7 +324,8 @@ object WallpaperController {
 
     /** Görünürlük tetikleyicileri jest ile çakışmasın */
     fun isGestureCooldownActive(): Boolean {
-        return System.currentTimeMillis() - lastGestureAt < GESTURE_COOLDOWN_MS
+        val last = lastGestureAt
+        return last != 0L && SystemClock.elapsedRealtime() - last < GESTURE_COOLDOWN_MS
     }
 
     fun nextChangeEtaMillis(context: Context): Long? {

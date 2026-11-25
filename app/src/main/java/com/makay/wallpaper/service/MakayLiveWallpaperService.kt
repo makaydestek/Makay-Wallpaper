@@ -16,6 +16,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.service.wallpaper.WallpaperService
+import android.util.Log
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import com.makay.wallpaper.core.WallpaperApplier
@@ -24,14 +25,27 @@ import com.makay.wallpaper.data.WallpaperSettingsRepository
 import com.makay.wallpaper.domain.model.GestureAction
 import com.makay.wallpaper.domain.model.TransitionStyle
 import com.makay.wallpaper.util.PlatformManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
 
 class MakayLiveWallpaperService : WallpaperService() {
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val renderDispatcher = Dispatchers.IO.limitedParallelism(1)
+
     override fun onCreateEngine(): Engine = MakayEngine()
 
+    private data class FrameRequest(val size: Pair<Int, Int>, val animate: Boolean)
+
     private inner class MakayEngine : Engine() {
+        private val scope = CoroutineScope(Dispatchers.Main.immediate)
+        private val frames = Channel<FrameRequest>(Channel.CONFLATED)
         private val handler = Handler(Looper.getMainLooper())
         private var bitmap: Bitmap? = null
         private var previousBitmap: Bitmap? = null
@@ -80,6 +94,9 @@ class MakayLiveWallpaperService : WallpaperService() {
             }
             setTouchEventsEnabled(true)
             setOffsetNotificationsEnabled(false)
+            scope.launch {
+                for (request in frames) render(request)
+            }
         }
 
         override fun onCommand(
@@ -101,6 +118,8 @@ class MakayLiveWallpaperService : WallpaperService() {
         }
 
         override fun onDestroy() {
+            frames.cancel()
+            scope.cancel()
             handler.removeCallbacks(tapReset)
             handler.removeCallbacks(fadeTick)
             handler.removeCallbacks(confirmHiddenTrigger)
@@ -130,7 +149,7 @@ class MakayLiveWallpaperService : WallpaperService() {
                 if (triggers.onHomeHidden &&
                     !WallpaperSettingsRepository.getInstance(applicationContext).isQuietHoursNow() &&
                     !WallpaperController.isGestureCooldownActive()) {
-                    WallpaperController.next(applicationContext)
+                    advanceFromVisibility()
                 }
             }
         }
@@ -139,6 +158,10 @@ class MakayLiveWallpaperService : WallpaperService() {
             val prev = lastVisible
             lastVisible = visible
             if (!visible) clearTaps()
+            if (isPreview) {
+                if (visible) reloadAndDraw(animate = false)
+                return
+            }
             if (visible) {
                 handler.removeCallbacks(confirmHiddenTrigger)
                 reloadAndDraw(animate = false)
@@ -151,8 +174,7 @@ class MakayLiveWallpaperService : WallpaperService() {
                     val triggers = WallpaperSettingsRepository.getInstance(applicationContext).triggers.value
                     if (triggers.onHomeShown &&
                         !WallpaperSettingsRepository.getInstance(applicationContext).isQuietHoursNow()) {
-                        WallpaperController.next(applicationContext)
-                        reloadAndDraw(animate = true)
+                        advanceFromVisibility()
                     }
                 }
                 hiddenSince = 0L
@@ -161,6 +183,16 @@ class MakayLiveWallpaperService : WallpaperService() {
                 hiddenSince = System.currentTimeMillis()
                 handler.removeCallbacks(confirmHiddenTrigger)
                 handler.postDelayed(confirmHiddenTrigger, 600L)
+            }
+        }
+
+        private fun advanceFromVisibility() {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    WallpaperController.next(applicationContext)
+                } catch (e: Exception) {
+                    Log.w("MakayWallpaper", "Wallpaper visibility trigger failed", e)
+                }
             }
         }
 
@@ -203,7 +235,7 @@ class MakayLiveWallpaperService : WallpaperService() {
                 else -> return
             }
             if (use == GestureAction.NONE) return
-            WallpaperController.performGesture(applicationContext, use)
+            WallpaperController.enqueueGesture(applicationContext, use)
         }
 
         private fun reloadAndDraw(animate: Boolean, targetSize: Pair<Int, Int>? = null) {
@@ -218,25 +250,39 @@ class MakayLiveWallpaperService : WallpaperService() {
             } else {
                 size
             }
-            val image = WallpaperController.currentImage(applicationContext)
+            frames.trySend(FrameRequest(frameSize, animate))
+        }
+
+        private suspend fun render(request: FrameRequest) {
+            var prepared: Bitmap? = null
+            try {
+                withContext(renderDispatcher) {
+                    val image = WallpaperController.currentImage(applicationContext) ?: return@withContext
+                    prepared = try {
+                        WallpaperApplier.prepareForDisplay(
+                            applicationContext, Uri.parse(image.uri), image.cropRectNormalized(),
+                            rotationDegrees = image.rotationDegrees, targetSize = request.size
+                        )
+                    } catch (e: Exception) {
+                        Log.w("MakayWallpaper", "Could not prepare live wallpaper: ${e.javaClass.simpleName}")
+                        null
+                    } catch (_: OutOfMemoryError) {
+                        Log.w("MakayWallpaper", "Not enough memory to prepare live wallpaper")
+                        null
+                    }
+                }
+                val next = prepared
+                prepared = null
+                if (next == null) drawFrame() else displayFrame(next, request.animate)
+            } finally {
+                prepared?.recycle()
+            }
+        }
+
+        private fun displayFrame(next: Bitmap, animate: Boolean) {
             val useFade = animate &&
                 WallpaperSettingsRepository.getInstance(applicationContext)
                     .behavior.value.transition == TransitionStyle.FADE
-            val next = if (image != null) {
-                WallpaperApplier.prepareForDisplay(
-                    applicationContext,
-                    Uri.parse(image.uri),
-                    image.cropRectNormalized(),
-                    rotationDegrees = image.rotationDegrees,
-                    targetSize = frameSize
-                )
-            } else null
-
-            if (next == null) {
-                // Decode başarısızsa mevcut kareyi silme (siyah flaş olmasın)
-                drawFrame()
-                return
-            }
 
             if (useFade && bitmap != null) {
                 previousBitmap?.recycle()

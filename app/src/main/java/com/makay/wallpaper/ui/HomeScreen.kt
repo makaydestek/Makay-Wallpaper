@@ -250,13 +250,13 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         TvActionButton(
-                            onClick = { WallpaperController.prevAlbum(context) },
+                            onClick = { runNav { WallpaperController.prevAlbum(context) } },
                             modifier = Modifier.weight(1f).height(44.dp),
                             idle = MaterialTheme.colorScheme.secondaryContainer,
                             idleContent = MaterialTheme.colorScheme.onSecondaryContainer
                         ) { Text(LanguageManager.t("Önceki albüm", "Prev album", context)) }
                         TvActionButton(
-                            onClick = { WallpaperController.nextAlbum(context) },
+                            onClick = { runNav { WallpaperController.nextAlbum(context) } },
                             modifier = Modifier.weight(1f).height(44.dp),
                             idle = MaterialTheme.colorScheme.secondaryContainer,
                             idleContent = MaterialTheme.colorScheme.onSecondaryContainer

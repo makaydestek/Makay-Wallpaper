@@ -86,9 +86,7 @@ class DoubleTapAccessibilityService : AccessibilityService() {
             else -> return
         }
         if (action == GestureAction.NONE) return
-        Thread({
-            WallpaperController.performGesture(applicationContext, action)
-        }, "GestureApply").start()
+        WallpaperController.enqueueGesture(applicationContext, action)
     }
 
     override fun onInterrupt() = Unit

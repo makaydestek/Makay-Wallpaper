@@ -29,8 +29,9 @@ class ScheduleReceiver : BroadcastReceiver() {
                             WallpaperScheduler.cancelTimer(app)
                             return@launch
                         }
-                        WallpaperController.next(app, allowDayPart = true)
-                        WallpaperScheduler.rescheduleTimerAfterChange(app)
+                        if (!WallpaperController.next(app, allowDayPart = true)) {
+                            WallpaperScheduler.rescheduleTimerAfterChange(app)
+                        }
                     }
                     ACTION_SCHEDULE -> {
                         val id = scheduleId ?: return@launch

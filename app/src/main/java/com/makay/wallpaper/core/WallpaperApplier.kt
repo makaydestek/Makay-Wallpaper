@@ -10,7 +10,6 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
-import android.media.FaceDetector
 import android.net.Uri
 import android.os.Build
 import android.util.DisplayMetrics
@@ -226,17 +225,8 @@ object WallpaperApplier {
             }
             FitMode.FILL -> {
                 val scale = max(outW.toFloat() / source.width, outH.toFloat() / source.height)
-                val focus = detectFaceFocus(source)
-                val visibleW = outW / scale
-                val visibleH = outH / scale
-                val cropLeft = focus?.let {
-                    (it.x * source.width - visibleW / 2f).coerceIn(0f, source.width - visibleW)
-                } ?: (source.width - visibleW) / 2f
-                val cropTop = focus?.let {
-                    (it.y * source.height - visibleH / 2f).coerceIn(0f, source.height - visibleH)
-                } ?: (source.height - visibleH) / 2f
-                val left = -cropLeft * scale
-                val top = -cropTop * scale
+                val left = (outW - source.width * scale) / 2f
+                val top = (outH - source.height * scale) / 2f
                 val matrix = Matrix().apply {
                     setScale(scale, scale)
                     postTranslate(left, top)
@@ -246,39 +236,6 @@ object WallpaperApplier {
         }
         return out
     }
-
-    /**
-     * Finds a face center for FILL framing. Android's on-device detector is deliberately
-     * optional: unsupported images/devices fall back to the usual centered crop.
-     */
-    private fun detectFaceFocus(source: Bitmap): PointF? = runCatching {
-        // FaceDetector requires RGB_565 and an even image width.
-        val width = source.width - (source.width % 2)
-        if (width < 2 || source.height < 2) return null
-        val detectorBitmap = Bitmap.createBitmap(source, 0, 0, width, source.height)
-        val rgb565 = if (detectorBitmap.config == Bitmap.Config.RGB_565) detectorBitmap
-        else detectorBitmap.copy(Bitmap.Config.RGB_565, false).also {
-            if (detectorBitmap !== source) detectorBitmap.recycle()
-        }
-        try {
-            val faces = arrayOfNulls<FaceDetector.Face>(10)
-            val count = FaceDetector(width, source.height, faces.size).findFaces(rgb565, faces)
-            val face = faces.take(count).filterNotNull()
-                .filter { it.confidence() >= 0.35f }
-                .maxByOrNull { it.eyesDistance() }
-                ?: return null
-            val midpoint = android.graphics.PointF()
-            face.getMidPoint(midpoint)
-            PointF(
-                (midpoint.x / source.width).coerceIn(0f, 1f),
-                (midpoint.y / source.height).coerceIn(0f, 1f)
-            )
-        } finally {
-            if (rgb565 !== source && !rgb565.isRecycled) rgb565.recycle()
-        }
-    }.getOrNull()
-
-    private data class PointF(val x: Float, val y: Float)
 
     fun centeredCropForAspect(imageW: Int, imageH: Int, targetW: Int, targetH: Int): RectF {
         if (imageW <= 0 || imageH <= 0 || targetW <= 0 || targetH <= 0) {
